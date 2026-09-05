@@ -15,6 +15,8 @@
 
 ## Установка
 
+Команды выполняются из корня репозитория (виртуальное окружение и `requirements.txt` лежат там):
+
 ```bash
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -37,13 +39,13 @@ cp .env.example .env
 CLI-версия (чат в консоли, для выхода введите `exit`):
 
 ```bash
-.venv/bin/python chat.py
+.venv/bin/python day1/chat.py
 ```
 
 Веб-версия (откроется на http://127.0.0.1:7860):
 
 ```bash
-.venv/bin/python web.py
+.venv/bin/python day1/web.py
 ```
 
 ## Как это работает

@@ -5,8 +5,11 @@ from openai import OpenAI
 
 
 def load_env(path: str = ".env") -> None:
-    p = Path(__file__).parent / path
-    if not p.exists():
+    for base in (Path(__file__).parent, Path(__file__).parent.parent):
+        p = base / path
+        if p.exists():
+            break
+    else:
         return
     for line in p.read_text(encoding="utf-8").splitlines():
         line = line.strip()
