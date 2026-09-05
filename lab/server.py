@@ -9,6 +9,14 @@ from config import DEFAULT_MODEL, MODELS, complete
 
 LAB_DIR = Path(__file__).parent
 DAY2_INDEX = LAB_DIR.parent / "day2" / "index.html"
+DIST_DIR = LAB_DIR / "frontend" / "dist"
+ASSET_TYPES = {
+    ".js": "text/javascript; charset=utf-8",
+    ".css": "text/css; charset=utf-8",
+    ".svg": "image/svg+xml",
+    ".map": "application/json",
+    ".woff2": "font/woff2",
+}
 PORT = 7861
 MAX_BODY = 100_000
 RUN_DEADLINE_S = 300
@@ -318,13 +326,31 @@ class LabHandler(BaseHTTPRequestHandler):
     def do_GET(self):
         path = self.path.split("?", 1)[0].rstrip("/") or "/"
         if path == "/":
-            self._file(LAB_DIR / "index.html", "text/html; charset=utf-8")
+            self._dist_index()
         elif path == "/day2":
             self._file(DAY2_INDEX, "text/html; charset=utf-8")
+        elif path.startswith("/assets/"):
+            self._asset(path)
         elif path == "/favicon.ico":
             self._send(204, b"", "image/x-icon")
         else:
             self._json(404, {"error": "Нет такого адреса"})
+
+    def _dist_index(self):
+        index = DIST_DIR / "index.html"
+        if not index.exists():
+            body = "Фронтенд не собран. Выполните: cd lab/frontend && npm install && npm run build"
+            self._send(503, body.encode("utf-8"), "text/plain; charset=utf-8")
+            return
+        self._file(index, "text/html; charset=utf-8")
+
+    def _asset(self, path: str) -> None:
+        assets = (DIST_DIR / "assets").resolve()
+        target = (assets / path[len("/assets/"):]).resolve()
+        if not target.is_relative_to(assets) or not target.is_file():
+            self._json(404, {"error": "Нет такого адреса"})
+            return
+        self._send(200, target.read_bytes(), ASSET_TYPES.get(target.suffix, "application/octet-stream"))
 
     def do_POST(self):
         path = self.path.split("?", 1)[0]
