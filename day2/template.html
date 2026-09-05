@@ -1,0 +1,388 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>День 2 — управление ответом LLM через API</title>
+<style>
+  :root {
+    --bg: #F7F6F3;
+    --surface: #FFFFFF;
+    --border: #EAEAEA;
+    --ink: #111111;
+    --muted: #787774;
+    --sans: 'SF Pro Display', 'Geist Sans', 'Helvetica Neue', 'Switzer', -apple-system, sans-serif;
+    --serif: 'Newsreader', 'Instrument Serif', 'Lyon Text', Georgia, 'Times New Roman', serif;
+    --mono: 'Geist Mono', 'SF Mono', 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --red-bg: #FDEBEC;   --red-ink: #9F2F2D;
+    --blue-bg: #E1F3FE;  --blue-ink: #1F6C9F;
+    --green-bg: #EDF3EC; --green-ink: #346538;
+    --yellow-bg: #FBF3DB;--yellow-ink: #956400;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(600px 380px at 78% 8%, rgba(149, 100, 0, 0.035), transparent 70%);
+  }
+  .wrap { max-width: 1024px; margin: 0 auto; padding: 0 24px; }
+
+  .topbar { border-bottom: 1px solid var(--border); background: rgba(247, 246, 243, 0.85); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 10; }
+  .topbar-in { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+  .brand { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); text-decoration: none; }
+  .brand em { font-style: normal; color: var(--muted); }
+  .toplink { font-family: var(--mono); font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; background: var(--surface); }
+  .toplink:hover { color: var(--ink); }
+
+  .hero { padding: 104px 0 88px; }
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em;
+    text-transform: uppercase; border-radius: 9999px; padding: 5px 12px;
+    background: var(--yellow-bg); color: var(--yellow-ink);
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 500; letter-spacing: -0.03em; line-height: 1.05;
+    font-size: clamp(40px, 6vw, 68px); margin: 24px 0 20px; max-width: 800px;
+  }
+  .lead { font-size: 18px; color: var(--muted); max-width: 640px; margin-bottom: 28px; }
+  .prompt-quote {
+    display: inline-block; font-family: var(--mono); font-size: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 18px; margin-bottom: 28px;
+  }
+  .meta-strip { font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .meta-strip b { color: var(--ink); font-weight: 500; }
+
+  .section { padding: 56px 0; }
+  .sec-head { display: flex; align-items: baseline; gap: 20px; margin-bottom: 8px; }
+  .sec-num { font-family: var(--serif); font-style: italic; font-size: 52px; color: var(--ink); opacity: 0.18; line-height: 1; }
+  h2 { font-family: var(--serif); font-weight: 500; letter-spacing: -0.02em; font-size: 34px; line-height: 1.1; }
+  .sec-q { color: var(--muted); font-size: 15px; margin: 0 0 28px 72px; }
+  @media (max-width: 640px) { .sec-q { margin-left: 0; } }
+
+  .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+  @media (max-width: 840px) { .grid { grid-template-columns: 1fr; } }
+
+  .card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 28px; display: flex; flex-direction: column; gap: 14px;
+    transition: box-shadow 200ms ease;
+  }
+  .card:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
+  .card--wide { grid-column: 1 / -1; }
+
+  .tag {
+    align-self: flex-start; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; border-radius: 9999px; padding: 4px 10px;
+  }
+  .tag--prompt { background: var(--yellow-bg); color: var(--yellow-ink); }
+  .tag--api { background: var(--blue-bg); color: var(--blue-ink); }
+  .tag--base { background: var(--green-bg); color: var(--green-ink); }
+
+  .card h3 { font-size: 17px; font-weight: 600; letter-spacing: -0.01em; }
+  .mech { font-size: 14px; color: var(--muted); }
+
+  .badges { display: flex; flex-wrap: wrap; gap: 8px; }
+  .badge {
+    font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+    border-radius: 9999px; padding: 4px 10px; background: var(--bg); color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .badge--green { background: var(--green-bg); color: var(--green-ink); border-color: transparent; }
+  .badge--red { background: var(--red-bg); color: var(--red-ink); border-color: transparent; }
+  .badge--blue { background: var(--blue-bg); color: var(--blue-ink); border-color: transparent; }
+  .badge--yellow { background: var(--yellow-bg); color: var(--yellow-ink); border-color: transparent; }
+
+  pre.out {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55; white-space: pre-wrap;
+    word-break: break-word; background: #F9F9F8; border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 18px; max-height: 300px; overflow: auto; color: #2F3437;
+  }
+
+  .findings { border-top: 1px solid var(--border); margin-top: 24px; }
+  .finding { display: grid; grid-template-columns: 56px 1fr; gap: 16px; padding: 22px 0; border-bottom: 1px solid var(--border); }
+  .finding-n { font-family: var(--mono); font-size: 13px; color: var(--muted); padding-top: 3px; }
+  .finding h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .finding p { font-size: 14.5px; color: var(--muted); }
+  .finding p code, .mech code {
+    font-family: var(--mono); font-size: 0.9em; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+  }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--red-ink);
+    border-radius: 12px; padding: 28px; margin-top: 40px;
+  }
+  .callout h3 { font-family: var(--serif); font-weight: 500; font-size: 24px; letter-spacing: -0.02em; margin: 10px 0 8px; }
+  .callout p { font-size: 14.5px; color: var(--muted); margin-bottom: 8px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout code { font-family: var(--mono); font-size: 0.9em; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  footer { border-top: 1px solid var(--border); padding: 48px 0 64px; margin-top: 56px; }
+  footer p { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  footer a { color: var(--ink); }
+  kbd {
+    font-family: var(--mono); font-size: 12px; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--surface); padding: 2px 7px;
+  }
+
+  .reveal { opacity: 0; transform: translateY(12px); transition: opacity 600ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms), transform 600ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms); }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="#">AI Practice <em>/ день 2</em></a>
+    <a class="toplink" href="https://github.com/triolyami/ai-practice" target="_blank" rel="noopener">repo</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="pill">Домашнее задание · Управление ответом модели</span>
+    <h1>Один запрос — семь ответов</h1>
+    <p class="lead">
+      Один и тот же запрос отправлен в модель семь раз. Ничего не менялось, кроме уровня
+      контроля ответа: где-то ограничение сформулировано словами в промпте, где-то задано
+      параметром API. Разница видна в каждом ответе ниже.
+    </p>
+    <div class="prompt-quote">«Расскажи, как устроен интернет»</div>
+    <div class="meta-strip" id="meta-strip"></div>
+  </section>
+
+  <section class="section" id="baseline-section" style="padding-top: 0;">
+    <div id="baseline"></div>
+  </section>
+
+  <div id="groups"></div>
+
+  <section class="section findings-section">
+    <div class="sec-head"><span class="sec-num">04</span><h2>Что мы увидели</h2></div>
+    <div class="findings">
+      <div class="finding">
+        <span class="finding-n">01</span>
+        <div>
+          <h3>Параметры API — это гарантии, промпт — это просьба</h3>
+          <p id="f-format-prompt"></p>
+        </div>
+      </div>
+      <div class="finding">
+        <span class="finding-n">02</span>
+        <div>
+          <h3>JSON-режим гарантирует валидность, но не схему</h3>
+          <p>Даже в режиме <code>response_format</code> структуру полей описывает по-прежнему промпт — без него модель не знает, какие ключи нужны. Полной схемы (<code>json_schema</code>) API Z.ai не поддерживает: только <code>json_object</code>.</p>
+        </div>
+      </div>
+      <div class="finding">
+        <span class="finding-n">03</span>
+        <div>
+          <h3>Лимит длины: слова не считаются, токены — считаются</h3>
+          <p id="f-length"></p>
+        </div>
+      </div>
+      <div class="finding">
+        <span class="finding-n">04</span>
+        <div>
+          <h3>stop-последовательность отрезает хвост безвозвратно</h3>
+          <p id="f-stop"></p>
+        </div>
+      </div>
+    </div>
+
+    <aside class="callout reveal">
+      <span class="tag tag--prompt" style="background: var(--red-bg); color: var(--red-ink);">бонус-эксперимент</span>
+      <h3>Когда скрытые рассуждения перехватывают контроль</h3>
+      <p>
+        Первые прогоны делались на <code>glm-5.3</code>. Эта модель «всегда думает»:
+        API запрещает отключать reasoning (доступны только уровни low / high / max), а
+        служебные токены рассуждений идут в общий счёт ответа.
+      </p>
+      <p>
+        Результат: <code>max_tokens = 60</code> целиком съедался скрытыми рассуждениями —
+        видимый ответ приходил <b>пустым</b> с <code>finish_reason = length</code>. А
+        <code>stop = ["\n\n"]</code> срабатывал внутри рассуждений ещё до начала ответа — с тем же
+        нулевым результатом. Контроль был применён строго, но не к тому тексту.
+      </p>
+      <p>
+        Поэтому итоговая матрица выполнена на <code>glm-4.6</code> с
+        <code>thinking: disabled</code>: у неё ограничения действуют именно на видимый ответ.
+      </p>
+    </aside>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Воспроизвести: <kbd>cp .env.example .env</kbd> → вписать ключ → <kbd>.venv/bin/python day2/experiment.py</kbd></p>
+    <p>Модель: <b id="foot-model"></b> · Z.ai API, совместимый с OpenAI SDK · temperature 0, thinking disabled</p>
+    <p>Дизайн страницы — по протоколу <a href="https://github.com/Leonxlnx/taste-skill" target="_blank" rel="noopener">minimalist-ui / taste-skill</a> (MIT)</p>
+  </div>
+</footer>
+
+<script type="application/json" id="results-data">__RESULTS_JSON__</script>
+<script>
+const DATA = JSON.parse(document.getElementById('results-data').textContent);
+
+function plural(n, forms) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return forms[0];
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return forms[1];
+  return forms[2];
+}
+
+function badge(text, tone) {
+  const el = document.createElement('span');
+  el.className = 'badge' + (tone ? ' badge--' + tone : '');
+  el.textContent = text;
+  return el;
+}
+
+function tag(text, tone) {
+  const el = document.createElement('span');
+  el.className = 'tag tag--' + tone;
+  el.textContent = text;
+  return el;
+}
+
+function badgesFor(run) {
+  const m = run.metrics;
+  const list = [];
+  list.push(badge(`${m.words} ${plural(m.words, ['слово', 'слова', 'слов'])}`));
+  list.push(badge(`${run.completion_tokens} ${plural(run.completion_tokens, ['токен', 'токена', 'токенов'])}`));
+  if (run.group === 'format') {
+    list.push(badge(m.valid_json ? 'валидный JSON' : 'невалидный JSON', m.valid_json ? 'green' : 'red'));
+    if (m.markdown_fence) list.push(badge('markdown-ограждение', 'yellow'));
+  }
+  if (run.group === 'stop') {
+    list.push(badge(`${m.paragraphs} ${plural(m.paragraphs, ['абзац', 'абзаца', 'абзацев'])}`));
+  }
+  if (run.finish_reason === 'length') {
+    list.push(badge('finish_reason: length', 'red'));
+    if (m.ends_mid_sentence) list.push(badge('обрыв на полуслове', 'red'));
+  } else {
+    list.push(badge('finish_reason: ' + run.finish_reason));
+  }
+  return list;
+}
+
+function outPre(text) {
+  const pre = document.createElement('pre');
+  pre.className = 'out';
+  pre.textContent = text;
+  return pre;
+}
+
+function card(run, wide) {
+  const art = document.createElement('article');
+  art.className = 'card reveal' + (wide ? ' card--wide' : '');
+  const isApi = Object.keys(run.request.params).length > 0;
+  const isBase = run.id === 'baseline';
+  art.appendChild(tag(isBase ? 'эталон' : isApi ? 'api-параметр' : 'промпт',
+    isBase ? 'base' : isApi ? 'api' : 'prompt'));
+  const h3 = document.createElement('h3');
+  h3.textContent = run.title;
+  art.appendChild(h3);
+  const mech = document.createElement('p');
+  mech.className = 'mech';
+  mech.textContent = run.mechanism;
+  art.appendChild(mech);
+  const badges = document.createElement('div');
+  badges.className = 'badges';
+  badgesFor(run).forEach(b => badges.appendChild(b));
+  art.appendChild(badges);
+  art.appendChild(outPre(run.content));
+  return art;
+}
+
+document.getElementById('meta-strip').innerHTML =
+  `<b>${DATA.meta.model}</b> · temperature <b>${DATA.meta.temperature}</b> · thinking: <b>${DATA.meta.thinking}</b> · ` +
+  `${DATA.runs.length} ${plural(DATA.runs.length, ['запрос', 'запроса', 'запросов'])} · ${DATA.meta.generated_at}`;
+document.getElementById('foot-model').textContent = DATA.meta.model;
+
+const baseline = DATA.runs.find(r => r.id === 'baseline');
+const baselineBox = document.getElementById('baseline');
+baselineBox.appendChild(card(baseline, true));
+
+const order = ['format', 'length', 'stop'];
+const groupsBox = document.getElementById('groups');
+order.forEach((key, i) => {
+  const group = DATA.groups[key];
+  const section = document.createElement('section');
+  section.className = 'section';
+  const head = document.createElement('div');
+  head.className = 'sec-head reveal';
+  const num = document.createElement('span');
+  num.className = 'sec-num';
+  num.textContent = '0' + (i + 1);
+  const h2 = document.createElement('h2');
+  h2.textContent = group.name;
+  head.appendChild(num);
+  head.appendChild(h2);
+  section.appendChild(head);
+  const q = document.createElement('p');
+  q.className = 'sec-q';
+  q.textContent = group.question;
+  section.appendChild(q);
+  const grid = document.createElement('div');
+  grid.className = 'grid';
+  DATA.runs.filter(r => r.group === key).forEach(r => grid.appendChild(card(r)));
+  section.appendChild(grid);
+  groupsBox.appendChild(section);
+});
+
+const fFormatPrompt = DATA.runs.find(r => r.id === 'format-prompt');
+const fFormatApi = DATA.runs.find(r => r.id === 'format-api');
+document.getElementById('f-format-prompt').textContent =
+  `В этом прогоне модель послушалась и без API: валидный JSON, без markdown-ограждений. ` +
+  `Но это выполнение просьбы, а не гарантия — другая формулировка или другая модель легко дали бы ` +
+  `ограждение \`\`\`json или пояснение до кода. response_format переносит гарантию на сервер: ` +
+  `ответ ${fFormatApi.metrics.valid_json ? 'парсится всегда' : 'обязан парситься'}, а схему полей по-прежнему описывает только промпт.`;
+
+const fLengthPrompt = DATA.runs.find(r => r.id === 'length-prompt');
+const fLengthApi = DATA.runs.find(r => r.id === 'length-api');
+document.getElementById('f-length').textContent =
+  `Просьба «не более 30 слов» в этом прогоне выполнена: ${fLengthPrompt.metrics.words} ` +
+  `${plural(fLengthPrompt.metrics.words, ['слово', 'слова', 'слов'])} с аккуратной концовкой — модель решила остановиться сама. ` +
+  `max_tokens = 60 работает физически: генерация длилась ровно ${fLengthApi.completion_tokens} токенов ` +
+  `(${fLengthApi.metrics.words} ${plural(fLengthApi.metrics.words, ['слово', 'слова', 'слов'])} по-русски — больше, чем просили в промпте!) ` +
+  `и оборвалась на полуслове, finish_reason: length.`;
+
+const fStopPrompt = DATA.runs.find(r => r.id === 'stop-prompt');
+const fStopApi = DATA.runs.find(r => r.id === 'stop-api');
+const baselineRun = DATA.runs.find(r => r.id === 'baseline');
+document.getElementById('f-stop').textContent =
+  `Инструкция «закончить после первого абзаца» тоже соблюдена: ${fStopPrompt.metrics.paragraphs} ` +
+  `${plural(fStopPrompt.metrics.paragraphs, ['абзац', 'абзаца', 'абзацев'])}. Но со стороны API такой ответ ` +
+  `неотличим от обычного завершения — тот же finish_reason: stop. А stop-последовательность обрезала текст ` +
+  `ровно на первом разрыве абзаца: начало совпадает с эталоном вплоть до символа, а хвост из ` +
+  `${baselineRun.metrics.words} ${plural(baselineRun.metrics.words, ['слова', 'слов', 'слов'])} не существует — его никто не читал и не оплачивал.`;
+
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('in');
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach((el, i) => {
+  el.style.setProperty('--d', `${(i % 4) * 80}ms`);
+  io.observe(el);
+});
+</script>
+</body>
+</html>
