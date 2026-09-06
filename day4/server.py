@@ -1,10 +1,9 @@
 import json
-import threading
 import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from config import DEFAULT_MODEL, MODELS, complete
+from config import DEFAULT_EFFORT, DEFAULT_MODEL, EFFORTS, MODELS, complete, thinking_label
 from defaults import DEFAULT_PROMPT
 
 DAY4_DIR = Path(__file__).parent
@@ -33,32 +32,30 @@ def compute_metrics(content: str) -> dict:
     return {"chars": len(text), "words": len(text.split())}
 
 
-def thinking_label(model: str) -> str:
-    return "disabled" if model == "glm-4.6" else "effort: low"
-
-
 def parse_run(body: dict) -> tuple:
     prompt = body.get("prompt", DEFAULT_PROMPT)
     if not isinstance(prompt, str) or not prompt.strip():
-        return None, None, None, "Поле prompt должно быть непустой строкой."
+        return None, "Поле prompt должно быть непустой строкой."
     prompt = prompt.strip()
     if len(prompt) > MAX_PROMPT:
-        return None, None, None, f"Промпт длиннее {MAX_PROMPT} символов."
+        return None, f"Промпт длиннее {MAX_PROMPT} символов."
     model = body.get("model")
     if model not in MODELS:
         model = DEFAULT_MODEL
     temperature = body.get("temperature", 0)
     if isinstance(temperature, bool) or not isinstance(temperature, (int, float)):
-        return None, None, None, "Поле temperature должно быть числом."
+        return None, "Поле temperature должно быть числом."
     temperature = float(temperature)
     if not 0 <= temperature <= MAX_TEMPERATURE:
-        return None, None, None, f"temperature должна быть в диапазоне 0–{MAX_TEMPERATURE}."
-    return prompt, model, temperature, None
+        return None, f"temperature должна быть в диапазоне 0–{MAX_TEMPERATURE}."
+    effort = body.get("effort")
+    if effort not in EFFORTS:
+        effort = DEFAULT_EFFORT
+    return {"prompt": prompt, "model": model, "temperature": temperature, "effort": effort}, None
 
 
 class Day4Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
-    run_slot = threading.BoundedSemaphore(1)
 
     def log_message(self, fmt, *args):
         print(f"[{time.strftime('%H:%M:%S')}] {self.address_string()} {fmt % args}", flush=True)
@@ -134,17 +131,11 @@ class Day4Handler(BaseHTTPRequestHandler):
             body = self._read_body(MAX_BODY)
             if body is None:
                 return
-            prompt, model, temperature, err = parse_run(body)
+            req, err = parse_run(body)
             if err:
                 self._json(400, {"error": err})
                 return
-            if not self.run_slot.acquire(blocking=False):
-                self._json(409, {"error": "Сервер уже генерирует ответ — подождите завершения."})
-                return
-            try:
-                self._stream_run(prompt, model, temperature)
-            finally:
-                self.run_slot.release()
+            self._stream_run(req)
         else:
             self._json(404, {"error": "Нет такого адреса"})
 
@@ -156,8 +147,10 @@ class Day4Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             raise ClientGone()
 
-    def _stream_run(self, prompt: str, model: str, temperature: float) -> None:
-        print(f"-> запуск {model}, temperature={temperature}, промпт {len(prompt)} симв.", flush=True)
+    def _stream_run(self, req: dict) -> None:
+        prompt, model = req["prompt"], req["model"]
+        temperature, effort = req["temperature"], req["effort"]
+        print(f"-> запуск {model}, temperature={temperature}, {thinking_label(model)}, промпт {len(prompt)} симв.", flush=True)
         try:
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
@@ -170,7 +163,7 @@ class Day4Handler(BaseHTTPRequestHandler):
             messages = [{"role": "user", "content": prompt}]
             params = {"temperature": temperature}
             try:
-                stream = complete(messages, model=model, stream=True, **params)
+                stream = complete(messages, model=model, stream=True, effort=effort, **params)
             except Exception as exc:
                 self._line({"event": "error", "message": f"Модель не приняла запрос: {str(exc)[:400]}"})
                 return
@@ -182,8 +175,8 @@ class Day4Handler(BaseHTTPRequestHandler):
             try:
                 self._line({
                     "event": "start",
-                    "meta": {"model": model, "temperature": temperature, "thinking": thinking_label(model)},
-                    "request": {"prompt": prompt, "params": params},
+                    "meta": {"model": model, "temperature": temperature, "thinking": thinking_label(model, effort)},
+                    "request": {"prompt": prompt, "params": {**params, "effort": effort}},
                 })
                 deadline = time.monotonic() + RUN_DEADLINE_S
                 for chunk in stream:
@@ -211,6 +204,7 @@ class Day4Handler(BaseHTTPRequestHandler):
                         "model": model,
                         "temperature": temperature,
                         "finish_reason": finish_reason,
+                        "effort": effort if MODELS[model]["thinking"] == "effort" else None,
                         "prompt_tokens": usage.prompt_tokens if usage else None,
                         "completion_tokens": usage.completion_tokens if usage else None,
                         "latency_ms": round((time.perf_counter() - started) * 1000),

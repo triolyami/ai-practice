@@ -38,6 +38,7 @@ export default function SampleCard({ temperature, sample, run, busy, onRerun }) 
         <span className="meta">
           {meta.completion_tokens != null ? `${meta.completion_tokens} токенов` : '—'} ·{' '}
           {formatLatency(meta.latency_ms)}
+          {meta.effort ? ` · effort ${meta.effort}` : ''}
           {meta.finish_reason ? ` · ${meta.finish_reason}` : ''}
         </span>
         <button
@@ -53,7 +54,7 @@ export default function SampleCard({ temperature, sample, run, busy, onRerun }) 
   )
 }
 
-export function Lane({ temperature, hint, items, busy, onRerun }) {
+export function Lane({ temperature, hint, note, items, busy, onRerun }) {
   const summary = laneSummary(items)
   const isTempZero = Number(temperature) === 0
   return (
@@ -62,6 +63,7 @@ export function Lane({ temperature, hint, items, busy, onRerun }) {
         <div className="lane-title">
           <span className="temp-chip">temperature = {temperature}</span>
           <span className="lane-hint">{hint || TEMPERATURE_HINTS[Number(temperature)] || ''}</span>
+          {note ? <span className="lane-hint">{note}</span> : null}
         </div>
         {summary ? (
           <div className="lane-summary">

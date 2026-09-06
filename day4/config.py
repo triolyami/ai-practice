@@ -28,19 +28,33 @@ client = OpenAI(
 
 MODELS = {
     "glm-4.6": {
-        "thinking": {"type": "disabled"},
+        "thinking": "off",
         "note": "рассуждения отключены — температура влияет только на выбор слов",
     },
     "glm-5.3": {
-        "thinking": {"effort": "low"},
+        "thinking": "effort",
         "note": "всегда думает сам — проверяем, чувствительна ли к температуре видимая часть",
     },
 }
 DEFAULT_MODEL = "glm-4.6"
+EFFORTS = ("low", "high", "max")
+DEFAULT_EFFORT = "low"
 
 
-def complete(messages: list, model: str, stream: bool = False, **params):
-    extra = {"thinking": MODELS[model]["thinking"]}
+def thinking_config(model: str, effort: str | None = None) -> dict:
+    if MODELS[model]["thinking"] == "effort":
+        return {"thinking": {"effort": effort if effort in EFFORTS else DEFAULT_EFFORT}}
+    return {"thinking": {"type": "disabled"}}
+
+
+def thinking_label(model: str, effort: str | None = None) -> str:
+    if MODELS[model]["thinking"] == "effort":
+        return f"effort: {effort if effort in EFFORTS else DEFAULT_EFFORT}"
+    return "disabled"
+
+
+def complete(messages: list, model: str, stream: bool = False, effort: str | None = None, **params):
+    extra = thinking_config(model, effort)
     if not stream:
         return client.chat.completions.create(
             model=model,

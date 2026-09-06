@@ -1,4 +1,5 @@
 import { useCallback, useRef, useState } from 'react'
+import { MAX_PARALLEL } from '../lib/constants.js'
 
 export const IDLE = { status: 'idle', text: '', meta: null, error: null, seeded: false }
 
@@ -9,7 +10,7 @@ export function runId(model, temperature, sample) {
 export function useRuns() {
   const [runs, setRuns] = useState({})
   const [job, setJob] = useState(null)
-  const abortRef = useRef(null)
+  const controllersRef = useRef(new Map())
 
   const patch = useCallback((id, p) => {
     setRuns(prev => ({ ...prev, [id]: { ...IDLE, ...(prev[id] || {}), ...p } }))
@@ -25,22 +26,24 @@ export function useRuns() {
   const replaceAll = useCallback(next => setRuns(next || {}), [])
 
   const stop = useCallback(() => {
-    if (abortRef.current) abortRef.current.abort()
+    for (const controller of controllersRef.current.values()) controller.abort()
   }, [])
 
   const runOne = useCallback(
-    (model, temperature, sample, prompt) => {
+    (model, temperature, sample, prompt, effort) => {
       const id = runId(model, temperature, sample)
       patch(id, { ...IDLE, status: 'running' })
       const controller = new AbortController()
-      abortRef.current = controller
+      const prev = controllersRef.current.get(id)
+      if (prev) prev.abort()
+      controllersRef.current.set(id, controller)
 
       const load = async () => {
         try {
           const res = await fetch('/api/run', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ prompt, model, temperature }),
+            body: JSON.stringify({ prompt, model, temperature, effort }),
             signal: controller.signal,
           })
           if (!res.ok) {
@@ -82,6 +85,8 @@ export function useRuns() {
           }
           patch(id, { status: 'error', error: err.message })
           return 'error'
+        } finally {
+          if (controllersRef.current.get(id) === controller) controllersRef.current.delete(id)
         }
       }
 
@@ -91,21 +96,32 @@ export function useRuns() {
   )
 
   const runAll = useCallback(
-    async (model, temperatures, samples, prompt) => {
-      const total = temperatures.length * samples
-      let doneCount = 0
+    async (model, temperatures, samples, prompt, effort) => {
+      const tasks = []
+      for (const temperature of temperatures)
+        for (let sample = 1; sample <= samples; sample++) tasks.push({ temperature, sample })
+      const total = tasks.length
       setJob({ total, done: 0, label: '' })
-      let aborted = false
-      for (const temperature of temperatures) {
-        if (aborted) break
-        for (let sample = 1; sample <= samples; sample++) {
-          if (aborted) break
-          setJob({ total, done: doneCount, label: `t=${temperature} · №${sample}` })
-          const status = await runOne(model, temperature, sample, prompt)
-          doneCount++
-          if (status === 'stopped') aborted = true
+      let done = 0
+      let active = 0
+      let stopped = false
+
+      const worker = async () => {
+        for (;;) {
+          if (stopped) return
+          const task = tasks.shift()
+          if (!task) return
+          active++
+          setJob({ total, done, label: `параллельно ${active}` })
+          const status = await runOne(model, task.temperature, task.sample, prompt, effort)
+          active--
+          done++
+          setJob({ total, done, label: `параллельно ${active}` })
+          if (status === 'stopped') stopped = true
         }
       }
+
+      await Promise.all(Array.from({ length: Math.min(MAX_PARALLEL, total) }, worker))
       setJob(null)
     },
     [runOne],

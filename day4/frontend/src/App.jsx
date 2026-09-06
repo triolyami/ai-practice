@@ -4,13 +4,23 @@ import PromptCard from './components/PromptCard.jsx'
 import { Lane } from './components/Lane.jsx'
 import Conclusions from './components/Conclusions.jsx'
 import { runId, useRuns, IDLE } from './hooks/useRuns.js'
-import { DEFAULT_PROMPT, MODELS } from './lib/constants.js'
+import {
+  DEFAULT_PROMPT,
+  EFFORTS,
+  MODELS,
+  laneTemperatures,
+} from './lib/constants.js'
 import { loadState, saveState } from './lib/storage.js'
+
+const defaultTemps = () =>
+  Object.fromEntries(Object.entries(MODELS).map(([id, m]) => [id, m.defaultTemperatures.map(String)]))
 
 export default function App() {
   const [prompt, setPrompt] = useState(DEFAULT_PROMPT)
   const [model, setModel] = useState('glm-4.6')
   const [samples, setSamples] = useState(3)
+  const [effort, setEffort] = useState('low')
+  const [tempInputs, setTempInputs] = useState(defaultTemps)
   const [ready, setReady] = useState(false)
   const { runs, replaceAll, runOne, runAll, stop, job } = useRuns()
   const laneTopRef = useRef(null)
@@ -24,6 +34,18 @@ export default function App() {
       setPrompt(saved.prompt)
       if (MODELS[saved.model]) setModel(saved.model)
       if (typeof saved.samples === 'number') setSamples(saved.samples)
+      if (EFFORTS.includes(saved.effort)) setEffort(saved.effort)
+      if (saved.temps && typeof saved.temps === 'object') {
+        setTempInputs(prev => {
+          const next = { ...prev }
+          for (const [id, list] of Object.entries(saved.temps)) {
+            if (MODELS[id] && Array.isArray(list) && list.length && list.every(x => typeof x === 'string')) {
+              next[id] = list
+            }
+          }
+          return next
+        })
+      }
       const restored = {}
       for (const [id, r] of Object.entries(saved.runs || {})) {
         restored[id] = { ...IDLE, status: 'done', text: r.text, meta: r.meta, seeded: !!r.seeded }
@@ -67,14 +89,18 @@ export default function App() {
       for (const [id, r] of Object.entries(runs)) {
         if (r.status === 'done') doneRuns[id] = { text: r.text, meta: r.meta, seeded: r.seeded }
       }
-      saveState({ prompt, model, samples, runs: doneRuns })
+      saveState({ prompt, model, samples, effort, temps: tempInputs, runs: doneRuns })
     }, 400)
     return () => clearTimeout(t)
-  }, [prompt, model, samples, ready, runs])
+  }, [prompt, model, samples, effort, tempInputs, ready, runs])
 
-  const temperatures = MODELS[model].temperatures
+  const temperatures = laneTemperatures(tempInputs[model])
   const busy = job != null
   const effectivePrompt = prompt.trim() || DEFAULT_PROMPT
+  const laneNote =
+    MODELS[model].thinking === 'effort'
+      ? `${MODELS[model].label} · effort: ${effort}`
+      : `${MODELS[model].label} · рассуждения отключены`
 
   const start = async () => {
     requestAnimationFrame(() =>
@@ -84,11 +110,11 @@ export default function App() {
         }
       }),
     )
-    await runAll(model, temperatures, samples, effectivePrompt)
+    await runAll(model, temperatures, samples, effectivePrompt, effort)
   }
 
   const rerun = (temperature, sample) => {
-    runOne(model, temperature, sample, effectivePrompt)
+    runOne(model, temperature, sample, effectivePrompt, effort)
   }
 
   return (
@@ -99,8 +125,9 @@ export default function App() {
           <div className="hero">
             <h1>Температура</h1>
             <p className="lead">
-              Один и тот же запрос при temperature = 0, 0.7 и 1.2: сравниваем точность,
-              креативность и разнообразие. При первом открытии загружаются замороженные прогоны —
+              Один и тот же запрос в нескольких температурных точках — по умолчанию 0, 0.7 и максимум
+              модели, значения можно менять. Сравниваем точность, креативность и разнообразие;
+              прогоны идут параллельно. При первом открытии загружаются замороженные прогоны —
               любой из них можно перезапустить вживую.
             </p>
           </div>
@@ -111,6 +138,10 @@ export default function App() {
             onModelChange={setModel}
             samples={samples}
             onSamplesChange={setSamples}
+            effort={effort}
+            onEffortChange={setEffort}
+            temps={tempInputs[model]}
+            onTempsChange={list => setTempInputs(prev => ({ ...prev, [model]: list }))}
             job={job}
             onStart={start}
             onStop={stop}
@@ -120,6 +151,7 @@ export default function App() {
               <Lane
                 key={`${model}|${t}`}
                 temperature={t}
+                note={laneNote}
                 items={Array.from({ length: samples }, (_, i) => runs[runId(model, t, i + 1)] || { ...IDLE })}
                 busy={busy}
                 onRerun={rerun}
