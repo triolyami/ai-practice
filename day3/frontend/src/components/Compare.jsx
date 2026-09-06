@@ -1,6 +1,7 @@
 import { extractAnswer, verdictFor } from '../lib/answer.js'
 import { truncate } from '../lib/format.js'
 import { DEFAULT_TASK, GROUND_TRUTH } from '../lib/constants.js'
+import Jury from './Jury.jsx'
 
 function normAnswer(text) {
   if (!text) return ''
@@ -14,7 +15,16 @@ const VERDICT_CELL = {
   null: { cls: 'badge--unk', text: '?' },
 }
 
-export default function Compare({ runs, task, universe, selected }) {
+export default function Compare({
+  runs,
+  task,
+  universe,
+  selected,
+  judge,
+  onJudge,
+  judgeBusy,
+  judgeCandidates,
+}) {
   const done = universe.filter(u => selected.includes(u.id) && runs[u.id]?.status === 'done')
   if (done.length < 2) return null
 
@@ -86,6 +96,7 @@ export default function Compare({ runs, task, universe, selected }) {
             ? ' финальные ответы текстуально совпадают.'
             : ' финальные ответы текстуально различаются — форма подачи у моделей разная, верность определяет колонка «совпало» и сами решения выше.')}
       </p>
+      <Jury judge={judge} onJudge={onJudge} candidates={judgeCandidates} busy={judgeBusy} task={task} />
     </section>
   )
 }

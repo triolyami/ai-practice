@@ -4,6 +4,7 @@ import { useAgents } from './hooks/useAgents.js'
 import { usePipelines, resolveSteps } from './hooks/usePipelines.js'
 import { DEFAULT_AGENTS, DEFAULT_TASK, PIPELINES } from './lib/constants.js'
 import { clearState, loadState, saveState } from './lib/storage.js'
+import { requestJudge } from './lib/judge.js'
 import TopBar from './components/TopBar.jsx'
 import TaskCard from './components/TaskCard.jsx'
 import AgentCard from './components/AgentCard.jsx'
@@ -19,6 +20,7 @@ export default function App() {
   const { runs, replaceAll, run, abort, drop } = useRuns()
   const stopRef = useRef(false)
   const persistRef = useRef('')
+  const [judge, setJudge] = useState(null)
 
   const universe = [
     ...agents.map(a => ({ ...a, kind: 'agent' })),
@@ -38,6 +40,7 @@ export default function App() {
     if (saved) {
       setTask(saved.task)
       replaceAll(saved.runs)
+      if (saved.judge) setJudge({ status: 'done', ...saved.judge })
       return
     }
     fetch('/results.json')
@@ -78,13 +81,23 @@ export default function App() {
         }
       }
     }
-    const json = JSON.stringify({ task, runs: terminal })
+    const judgeState =
+      judge?.status === 'done' ? { result: judge.result, task: judge.task, count: judge.count } : null
+    const json = JSON.stringify({ task, runs: terminal, judge: judgeState })
     if (json === persistRef.current) return
     persistRef.current = json
-    saveState({ task, runs: terminal })
-  }, [runs, task])
+    saveState({ task, runs: terminal, judge: judgeState })
+  }, [runs, task, judge])
 
   const busy = Object.values(runs).some(r => r.status === 'running')
+  const judgeBusy = judge?.status === 'running'
+  const judgeCandidates = Object.entries(runs)
+    .filter(([, r]) => r.status === 'done' && r.text?.trim())
+    .map(([id, r]) => ({
+      id,
+      name: universe.find(u => u.id === id)?.name || id,
+      text: r.text.slice(0, 12000),
+    }))
   const hasLocal = Object.values(runs).some(
     r => !r.frozen && (r.status === 'done' || r.status === 'error'),
   )
@@ -121,6 +134,17 @@ export default function App() {
     abort()
   }, [abort])
 
+  const runJudgeAction = useCallback(async () => {
+    if (judgeCandidates.length < 2) return
+    setJudge({ status: 'running' })
+    try {
+      const result = await requestJudge({ task, answers: judgeCandidates })
+      setJudge({ status: 'done', result, task, count: judgeCandidates.length })
+    } catch (err) {
+      setJudge({ status: 'error', error: err.message })
+    }
+  }, [judgeCandidates, task])
+
   const startOwn = useCallback(() => {
     stopRef.current = true
     abort()
@@ -129,6 +153,7 @@ export default function App() {
     replaceAll({})
     setTask(DEFAULT_TASK)
     setFrozenAt(null)
+    setJudge(null)
     setSelected(agents.map(a => a.id))
   }, [abort, replaceAll, agents])
 
@@ -241,7 +266,16 @@ export default function App() {
               ))}
             </div>
 
-            <Compare runs={runs} task={task} universe={universe} selected={selected} />
+            <Compare
+              runs={runs}
+              task={task}
+              universe={universe}
+              selected={selected}
+              judge={judge}
+              onJudge={runJudgeAction}
+              judgeBusy={busy || judgeBusy}
+              judgeCandidates={judgeCandidates}
+            />
 
             <footer className="page-foot">
               агент — это один запрос: инструкция плюс задача; пайплайн —
