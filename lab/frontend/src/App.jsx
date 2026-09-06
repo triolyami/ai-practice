@@ -6,7 +6,6 @@ import TopBar from './components/TopBar.jsx'
 import ChatList from './components/ChatList.jsx'
 import Chat from './components/Chat.jsx'
 import Composer from './components/Composer.jsx'
-import SettingsPanel from './components/SettingsPanel.jsx'
 
 let nextId = 1
 
@@ -108,15 +107,12 @@ export default function App() {
             onNew={newChat}
             onDelete={deleteChat}
           />
-          <div className="side-head">
-            <span className="side-title">настройки ответа</span>
-            <span className="side-note">применяются к отправляемому сообщению</span>
-          </div>
-          <SettingsPanel settings={settings} setSettings={setSettings} />
         </aside>
         <div className="main">
           <Chat messages={messages} chat={chat} input={input} setInput={setInput} />
           <Composer
+            settings={settings}
+            setSettings={setSettings}
             busy={chat.phase === 'running'}
             onSend={handleSend}
             onStop={abort}

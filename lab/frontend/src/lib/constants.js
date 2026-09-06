@@ -59,6 +59,14 @@ export function buildPayload(messages, settings) {
   }
 }
 
+export function activeControlNames(s) {
+  const names = []
+  if (s.format.via !== 'off') names.push('формат')
+  if (s.length.via !== 'off') names.push('длина')
+  if (s.stop.via !== 'off') names.push('стоп')
+  return names
+}
+
 export function describeSettings(s) {
   const badges = []
   const { format, length, stop } = s
