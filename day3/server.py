@@ -46,7 +46,11 @@ JUDGE_PROMPT_HEADER = (
     "Если дан эталон — сверяй с ним; если нет — сначала реши задачу сам и сверяй ответы со своим решением.\n"
     "2. Обоснованность — каждый вывод следует из условий: существенные подсказки использованы, "
     "логических ошибок, противоречий и лишних домыслов нет.\n"
-    "3. Ясность — ответ структурирован, итоговый ответ сформулирован явно и его легко проверить."
+    "3. Ясность — ответ структурирован, итоговый ответ сформулирован явно и его легко проверить.\n"
+    "4. Цена — второстепенный критерий, качество всегда важнее. Рядом с каждым ответом указаны "
+    "его модель, время и потраченные токены. Когда два ответа близки по качеству, ставь выше тот, "
+    "что потратил меньше времени или токенов; если цена или скорость повлияли на место ответа, "
+    "упомяни это в его коротком комментарии."
 )
 JUDGE_PROMPT_FORMAT = (
     'Верни только валидный JSON без текста вокруг, ровно в такой структуре:\n'
@@ -131,14 +135,48 @@ def ground_truth_line() -> str:
     return "; ".join(f"{name} — {v['city']}, {v['age']}" for name, v in SOLUTION.items()) + "."
 
 
+def judge_cost(meta: dict) -> str:
+    parts = []
+    if meta["model"]:
+        parts.append(meta["model"])
+    if meta["latency_ms"] is not None:
+        parts.append(f"{meta['latency_ms'] / 1000:.1f} с")
+    if meta["completion_tokens"] is not None:
+        parts.append(f"{meta['completion_tokens']} ток.")
+    return f" — {' · '.join(parts)}" if parts else ""
+
+
 def judge_prompt(task: str, answers: list) -> str:
     parts = [JUDGE_PROMPT_HEADER, f"Задача:\n{task}"]
     if task == TASK.strip():
         parts.append(f"Эталон (верное решение):\n{ground_truth_line()}")
-    blocks = [f"[{a['id']}] {a['name']}\n{a['text']}" for a in answers]
+    blocks = [f"[{a['id']}] {a['name']}{judge_cost(a['meta'])}\n{a['text']}" for a in answers]
     parts.append("Ответы агентов:\n\n" + "\n\n".join(blocks))
     parts.append(JUDGE_PROMPT_FORMAT)
     return "\n\n".join(parts)
+
+
+def judge_meta(item: dict) -> dict:
+    raw = item.get("meta")
+    raw = raw if isinstance(raw, dict) else {}
+
+    def count(value):
+        if isinstance(value, bool):
+            return None
+        try:
+            value = int(value)
+        except (TypeError, ValueError):
+            return None
+        return value if value >= 0 else None
+
+    model = raw.get("model")
+    if not isinstance(model, str) or not model.strip():
+        model = None
+    return {
+        "model": model.strip()[:40] if model else None,
+        "latency_ms": count(raw.get("latency_ms")),
+        "completion_tokens": count(raw.get("completion_tokens")),
+    }
 
 
 def parse_judge(body: dict) -> tuple:
@@ -163,7 +201,12 @@ def parse_judge(body: dict) -> tuple:
         name = item.get("name")
         if not isinstance(name, str) or not name.strip():
             name = aid
-        answers.append({"id": aid, "name": name[:80], "text": text.strip()[:JUDGE_MAX_ANSWER]})
+        answers.append({
+            "id": aid,
+            "name": name[:80],
+            "text": text.strip()[:JUDGE_MAX_ANSWER],
+            "meta": judge_meta(item),
+        })
     return task, answers, None
 
 

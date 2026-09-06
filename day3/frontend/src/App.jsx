@@ -98,7 +98,19 @@ export default function App() {
   const judgeBusy = judge?.status === 'running'
   const judgeCandidates = universe
     .filter(u => selected.includes(u.id) && runs[u.id]?.status === 'done' && runs[u.id]?.text?.trim())
-    .map(u => ({ id: u.id, name: u.name || u.id, text: runs[u.id].text.slice(0, 12000) }))
+    .map(u => {
+      const m = runs[u.id].meta || {}
+      return {
+        id: u.id,
+        name: u.name || u.id,
+        text: runs[u.id].text.slice(0, 12000),
+        meta: {
+          model: m.model ?? null,
+          latency_ms: m.latency_ms ?? null,
+          completion_tokens: m.completion_tokens ?? null,
+        },
+      }
+    })
   const hasLocal = Object.values(runs).some(
     r => !r.frozen && (r.status === 'done' || r.status === 'error'),
   )
