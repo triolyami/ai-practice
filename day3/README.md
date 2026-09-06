@@ -42,6 +42,11 @@
 4. **Нативное рассуждение** — без инструкции, но на `glm-5.3`
    (effort low): проверка, что даёт встроенное мышление модели.
 
+У каждого агента выбирается effort — low, high или max; он действует
+только на `glm-5.3` (эта модель всегда думает сама и принимает только
+`thinking.effort`), у `glm-4.6` thinking выключен, поэтому поле effort
+там скрыто. По умолчанию — low.
+
 Своих агентов можно добавлять кнопкой «+ агент», у каждого — своя
 инструкция и модель. Ниже, в блоке «пайплайны», живут два
 многошаговых пайплайна — «сначала промпт» (модель пишет промпт,
@@ -106,8 +111,8 @@ cp .env.example .env   # и вписать свой GLM_API_KEY, если ещё
 прописан). Сервер — стандартная библиотека Python + `openai`, ключ берётся
 из `.env` в корне репозитория. Маршруты: `/` — страница, `/results.json` —
 замороженный прогон, `POST /api/solve` — решение агентом (тело
-`{task, agent: {id, name, instruction, model}}`) или пайплайном (тело
-`{task, pipeline: {id, instructions, model}}`); ответ — NDJSON-поток
+`{task, agent: {id, name, instruction, model, effort}}`) или пайплайном
+(тело `{task, pipeline: {id, instructions, model}}`); ответ — NDJSON-поток
 `start` → `delta`… → `done`. `POST /api/judge` — вердикт жюри (тело
 `{task, answers: [{id, name, text}]}`, ответ — JSON
 `{judge: {ranking, best, verdict}, meta}`). До 6 запросов идут

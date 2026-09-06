@@ -14,20 +14,24 @@ export const DEFAULT_TASK = TASK
 export const GROUND_TRUTH = 'Анна — Пермь, 28; Борис — Сочи, 34; Вера — Казань, 25; Григорий — Москва, 31.'
 
 export const DEFAULT_AGENTS = [
-  { id: 'baseline', name: 'Прямой ответ', instruction: '', model: 'glm-4.6' },
-  { id: 'cot', name: 'Пошагово', instruction: 'Решай пошагово.', model: 'glm-4.6' },
+  { id: 'baseline', name: 'Прямой ответ', instruction: '', model: 'glm-4.6', effort: 'low' },
+  { id: 'cot', name: 'Пошагово', instruction: 'Решай пошагово.', model: 'glm-4.6', effort: 'low' },
   {
     id: 'experts',
     name: 'Группа экспертов',
     instruction:
       'Задачу решает группа из трёх экспертов. Аналитик разбирает условия и фиксирует факты. Инженер строит на фактах решение задачи. Критик проверяет решение инженера на ошибки и даёт окончательный вердикт. Каждый эксперт должен предложить своё решение, после чего приведи финальный ответ группы.',
     model: 'glm-4.6',
+    effort: 'low',
   },
-  { id: 'thinking', name: 'Нативное рассуждение', instruction: '', model: 'glm-5.3' },
+  { id: 'thinking', name: 'Нативное рассуждение', instruction: '', model: 'glm-5.3', effort: 'low' },
 ]
 
-export function modelLabel(model) {
-  return model === 'glm-4.6' ? 'glm-4.6 (no reasoning)' : model
+export const EFFORTS = ['low', 'high', 'max']
+
+export function modelLabel(model, effort) {
+  if (model === 'glm-4.6') return 'glm-4.6 (no reasoning)'
+  return effort ? `${model} · effort ${effort}` : model
 }
 
 export const STEP_LABELS = {

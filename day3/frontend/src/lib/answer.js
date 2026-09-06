@@ -71,6 +71,7 @@ export function aggregateMeta(phases) {
   return {
     model: last.meta?.model,
     finish_reason: last.meta?.finish_reason,
+    effort: last.meta?.effort || null,
     steps: phasesList.length,
     prompt_tokens: phasesList.length ? sum('prompt_tokens') : null,
     completion_tokens: phasesList.length ? sum('completion_tokens') : null,

@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import complete
+from config import complete, thinking_label
 from puzzle import GROUND_TRUTH, TASK
 from server import PIPELINES
 
@@ -21,7 +21,7 @@ AGENTS = (
         "instruction": "Задачу решает группа из трёх экспертов. Аналитик разбирает условия и фиксирует факты. Инженер строит на фактах решение задачи. Критик проверяет решение инженера на ошибки и даёт окончательный вердикт. Каждый эксперт должен предложить своё решение, после чего приведи финальный ответ группы.",
         "model": "glm-4.6",
     },
-    {"id": "thinking", "name": "Нативное рассуждение", "instruction": "", "model": "glm-5.3"},
+    {"id": "thinking", "name": "Нативное рассуждение", "instruction": "", "model": "glm-5.3", "effort": "low"},
 )
 
 PIPELINES_RUN = (
@@ -40,10 +40,10 @@ def compute_metrics(content: str) -> dict:
     return {"chars": len(text), "words": len(text.split())}
 
 
-def run_step(model: str, content_text: str, name: str) -> dict:
+def run_step(model: str, content_text: str, name: str, effort: str | None = None) -> dict:
     messages = [{"role": "user", "content": content_text}]
     started = time.perf_counter()
-    resp = complete(messages, model=model, temperature=0)
+    resp = complete(messages, model=model, temperature=0, effort=effort)
     content = resp.choices[0].message.content or ""
     usage = resp.usage
     return {
@@ -52,6 +52,7 @@ def run_step(model: str, content_text: str, name: str) -> dict:
         "meta": {
             "model": model,
             "finish_reason": resp.choices[0].finish_reason,
+            "effort": effort if model == "glm-5.3" else None,
             "prompt_tokens": usage.prompt_tokens if usage else None,
             "completion_tokens": usage.completion_tokens if usage else None,
             "latency_ms": round((time.perf_counter() - started) * 1000),
@@ -62,8 +63,8 @@ def run_step(model: str, content_text: str, name: str) -> dict:
 
 def run_agent(task: str, agent: dict) -> dict:
     content_text = compose(task, agent["instruction"])
-    print(f"агент: {agent['id']} ({agent['model']}) ...", flush=True)
-    phase = run_step(agent["model"], content_text, "solve")
+    print(f"агент: {agent['id']} ({agent['model']}, {thinking_label(agent['model'], agent.get('effort'))}) ...", flush=True)
+    phase = run_step(agent["model"], content_text, "solve", agent.get("effort"))
     print(f"    готово: {phase['meta']['completion_tokens']} токенов, {phase['meta']['latency_ms']} мс", flush=True)
     return {
         "id": agent["id"],

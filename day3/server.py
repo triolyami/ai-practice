@@ -6,7 +6,14 @@ from pathlib import Path
 
 from openai import BadRequestError
 
-from config import DEFAULT_MODEL, MODELS, complete
+from config import (
+    DEFAULT_EFFORT,
+    DEFAULT_MODEL,
+    EFFORTS,
+    MODELS,
+    complete,
+    thinking_label,
+)
 from puzzle import SOLUTION, TASK
 
 DAY3_DIR = Path(__file__).parent
@@ -301,7 +308,7 @@ class Day3Handler(BaseHTTPRequestHandler):
                 finally:
                     self.solve_slots.release()
                 return
-            task, content, model, err = parse_solve(body)
+            task, content, model, effort, err = parse_solve(body)
             if err:
                 self._json(400, {"error": err})
                 return
@@ -309,7 +316,7 @@ class Day3Handler(BaseHTTPRequestHandler):
                 self._json(409, {"error": "Все слоты заняты — подождите завершения текущих запросов."})
                 return
             try:
-                self._stream_solve(task, content, model)
+                self._stream_solve(task, content, model, effort)
             finally:
                 self.solve_slots.release()
         elif path == "/api/judge":
@@ -401,8 +408,8 @@ class Day3Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             raise ClientGone()
 
-    def _stream_solve(self, task: str, content: str, model: str) -> None:
-        print(f"-> агент {model}, задача {len(task)} симв.", flush=True)
+    def _stream_solve(self, task: str, content: str, model: str, effort: str | None) -> None:
+        print(f"-> агент {model} ({thinking_label(model, effort)}), задача {len(task)} симв.", flush=True)
         try:
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
@@ -412,7 +419,7 @@ class Day3Handler(BaseHTTPRequestHandler):
             return
 
         try:
-            phase = self._run_step("solve", content, model)
+            phase = self._run_step("solve", content, model, effort)
             if phase is None:
                 return
             self._line({
@@ -455,12 +462,12 @@ class Day3Handler(BaseHTTPRequestHandler):
         except ClientGone:
             print("   клиент отключился — генерация прервана", flush=True)
 
-    def _run_step(self, name: str, content: str, model: str) -> dict | None:
+    def _run_step(self, name: str, content: str, model: str, effort: str | None = None) -> dict | None:
         messages = [{"role": "user", "content": content}]
         params = {}
-        print(f"   шаг {name}: модель {model}", flush=True)
+        print(f"   шаг {name}: модель {model}, {thinking_label(model, effort)}", flush=True)
         try:
-            stream = complete(messages, model=model, stream=True, temperature=0, **params)
+            stream = complete(messages, model=model, stream=True, temperature=0, effort=effort, **params)
         except Exception as exc:
             self._line({"event": "error", "step": name, "message": f"Модель не приняла запрос: {str(exc)[:400]}"})
             return None
@@ -473,7 +480,7 @@ class Day3Handler(BaseHTTPRequestHandler):
             self._line({
                 "event": "start",
                 "step": name,
-                "meta": {"model": model, "thinking": "disabled" if model == "glm-4.6" else "effort: low"},
+                "meta": {"model": model, "thinking": thinking_label(model, effort)},
                 "request": {"content": content, "params": params},
             })
             deadline = time.monotonic() + STEP_DEADLINE_S
@@ -499,6 +506,7 @@ class Day3Handler(BaseHTTPRequestHandler):
                 "meta": {
                     "model": model,
                     "finish_reason": finish_reason,
+                    "effort": effort if model == "glm-5.3" else None,
                     "prompt_tokens": usage.prompt_tokens if usage else None,
                     "completion_tokens": usage.completion_tokens if usage else None,
                     "latency_ms": round((time.perf_counter() - started) * 1000),
@@ -529,12 +537,15 @@ def parse_solve(body: dict) -> tuple:
     model = agent.get("model")
     if model not in MODELS:
         model = DEFAULT_MODEL
+    effort = agent.get("effort")
+    if effort not in EFFORTS:
+        effort = DEFAULT_EFFORT
     instruction = agent.get("instruction", "")
     if not isinstance(instruction, str):
         instruction = ""
     instruction = instruction.strip()
     content = f"{instruction}\n\nЗадача:\n{task}" if instruction else task
-    return task, content, model, None
+    return task, content, model, effort, None
 
 
 def parse_pipeline(body: dict) -> tuple:

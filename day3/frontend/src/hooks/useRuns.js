@@ -59,7 +59,13 @@ export function useRuns() {
           }
         : {
             task,
-            agent: { id: item.id, name: item.name, instruction: item.instruction, model: item.model },
+            agent: {
+              id: item.id,
+              name: item.name,
+              instruction: item.instruction,
+              model: item.model,
+              effort: item.effort,
+            },
           }
 
     const load = async () => {

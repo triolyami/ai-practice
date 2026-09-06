@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { PIPELINES, modelLabel } from '../lib/constants.js'
+import { EFFORTS, PIPELINES, modelLabel } from '../lib/constants.js'
 
 function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
   const [name, setName] = useState(agent.name)
   const [instruction, setInstruction] = useState(agent.instruction)
   const [model, setModel] = useState(agent.model)
+  const [effort, setEffort] = useState(EFFORTS.includes(agent.effort) ? agent.effort : 'low')
   const valid = name.trim().length > 0
   return (
     <div className="agent-editor">
@@ -42,12 +43,29 @@ function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
           ))}
         </div>
       </div>
+      {model === 'glm-5.3' && (
+        <div className="agent-field">
+          <span className="mini-label">effort</span>
+          <div className="agent-models">
+            {EFFORTS.map(e => (
+              <button
+                key={e}
+                type="button"
+                className={`chip-btn${effort === e ? ' chip-btn--on' : ''}`}
+                onClick={() => setEffort(e)}
+              >
+                {e}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
       <div className="agent-editor-actions">
         <button
           type="button"
           className="btn btn--primary btn--sm"
           disabled={!valid}
-          onClick={() => onSave(agent.id, { name: name.trim(), instruction, model })}
+          onClick={() => onSave(agent.id, { name: name.trim(), instruction, model, effort })}
         >
           сохранить
         </button>
@@ -122,7 +140,7 @@ export default function AgentSidebar({
   const add = () => {
     discardUnsaved()
     setEditingPipe(null)
-    const agent = { id: `a-${Date.now()}`, name: '', instruction: '', model: 'glm-4.6' }
+    const agent = { id: `a-${Date.now()}`, name: '', instruction: '', model: 'glm-4.6', effort: 'low' }
     onCreate(agent)
     setEditingId(agent.id)
   }
@@ -185,7 +203,7 @@ export default function AgentSidebar({
             >
               <span className="agent-name">{a.name || 'без названия'}</span>
               <span className={`strat-model${a.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
-                {modelLabel(a.model)}
+                {modelLabel(a.model, a.effort)}
               </span>
             </button>
             {editingId === a.id && (

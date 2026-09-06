@@ -4,6 +4,7 @@ import { STEP_LABELS, modelLabel } from '../lib/constants.js'
 
 function MetaLine({ meta, phases }) {
   const bits = [modelLabel(meta.model)]
+  if (meta.effort) bits.push(`effort ${meta.effort}`)
   if (meta.steps > 1) bits.push(`${meta.steps} ${plural(meta.steps, ['шаг', 'шага', 'шагов'])}`)
   if (meta.finish_reason) bits.push(`finish=${meta.finish_reason}`)
   if (meta.completion_tokens != null) {
@@ -67,7 +68,7 @@ export default function AgentCard({ item, state, onRun, busy, builtIn }) {
           <p className="strat-hint">{sub}</p>
         </div>
         <span className={`strat-model${item.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
-          {modelLabel(item.model)}
+          {modelLabel(item.model, item.effort)}
         </span>
       </div>
 

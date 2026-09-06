@@ -1,5 +1,5 @@
 import { useCallback, useState } from 'react'
-import { DEFAULT_AGENTS } from '../lib/constants.js'
+import { DEFAULT_AGENTS, EFFORTS } from '../lib/constants.js'
 
 const KEY = 'day3-agents-v1'
 
@@ -14,6 +14,7 @@ function load() {
         name: a.name,
         instruction: typeof a.instruction === 'string' ? a.instruction : '',
         model: a.model === 'glm-5.3' ? 'glm-5.3' : 'glm-4.6',
+        effort: EFFORTS.includes(a.effort) ? a.effort : 'low',
       }))
     return agents.length ? agents : null
   } catch {

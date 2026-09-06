@@ -269,9 +269,10 @@ export default function App() {
             <footer className="page-foot">
               агент — это один запрос: инструкция плюс задача; пайплайн —
               несколько шагов подряд, шаги фиксированы, правятся только
-              инструкции; модели glm-4.6 (thinking выключен) и glm-5.3
-              (effort low); задача и эталон — в <code>day3/puzzle.py</code>,
-              проверка единственности — <code>day3/verify.py</code>
+              инструкции; модели glm-4.6 (thinking выключен) и glm-5.3 (у
+              неё выбирается effort: low, high или max); задача и эталон —
+              в <code>day3/puzzle.py</code>, проверка единственности —{' '}
+              <code>day3/verify.py</code>
             </footer>
           </div>
         </main>
