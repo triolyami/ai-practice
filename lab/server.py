@@ -22,7 +22,7 @@ CHAT_DEADLINE_S = 240
 MAX_MESSAGES = 40
 MAX_CONTENT = 8000
 
-VIAS = ("off", "prompt", "api", "both")
+VIAS = ("off", "prompt", "api")
 FORMAT_KINDS = ("json", "markdown")
 FORMAT_INSTRUCTIONS = {
     "json": "Ответь строго валидным JSON без markdown-ограждений и пояснений.",
@@ -70,7 +70,7 @@ def parse_settings(raw) -> tuple:
     fmt_kind = fmt.get("kind", "json")
     if fmt_kind not in FORMAT_KINDS:
         return None, f"Неизвестный формат: {fmt_kind}."
-    if fmt_via in ("api", "both") and fmt_kind != "json":
+    if fmt_via == "api" and fmt_kind != "json":
         return None, "response_format на API умеет только JSON — для Markdown выберите режим «промпт»."
 
     length = raw.get("length") or {}
@@ -156,12 +156,12 @@ def parse_chat(body: dict) -> tuple:
 
 def prompt_additions(s: dict) -> list:
     parts = []
-    if s["format"]["via"] in ("prompt", "both"):
+    if s["format"]["via"] == "prompt":
         parts.append(FORMAT_INSTRUCTIONS[s["format"]["kind"]])
-    if s["length"]["via"] in ("prompt", "both"):
+    if s["length"]["via"] == "prompt":
         n = s["length"]["words"]
         parts.append(f"Ответь не более чем {n} {plural(n, ('словом', 'словами', 'словами'))}.")
-    if s["stop"]["via"] in ("prompt", "both"):
+    if s["stop"]["via"] == "prompt":
         parts.append(STOP_TEMPLATE.format(s=escape_seq(s["stop"]["sequence"])))
     return parts
 
@@ -173,11 +173,11 @@ def augment(content: str, s: dict) -> str:
 
 def api_params(s: dict) -> dict:
     params = {}
-    if s["format"]["via"] in ("api", "both"):
+    if s["format"]["via"] == "api":
         params["response_format"] = {"type": "json_object"}
-    if s["length"]["via"] in ("api", "both"):
+    if s["length"]["via"] == "api":
         params["max_tokens"] = s["length"]["max_tokens"]
-    if s["stop"]["via"] in ("api", "both"):
+    if s["stop"]["via"] == "api":
         params["stop"] = [s["stop"]["sequence"]]
     return params
 

@@ -6,13 +6,13 @@ export const MODEL_NOTES = {
     warn: false,
   },
   'glm-5.3': {
-    text: 'всегда думает: max_tokens и stop могут сработать на скрытых рассуждениях, и видимый ответ придёт пустым (находка дня 2)',
+    text: 'всегда думает: max_tokens и stop могут сработать на скрытых рассуждениях, и видимый ответ придёт пустым',
     warn: true,
   },
 }
 
-export const VIA_LABELS = { off: 'выкл', prompt: 'промпт', api: 'API', both: 'оба' }
-export const VIAS = ['off', 'prompt', 'api', 'both']
+export const VIA_LABELS = { off: 'выкл', prompt: 'промпт', api: 'API' }
+export const VIAS = ['off', 'prompt', 'api']
 
 export const FORMAT_KINDS = { json: 'JSON', markdown: 'Markdown' }
 
@@ -59,34 +59,26 @@ export function buildPayload(messages, settings) {
   }
 }
 
-export function activeControlNames(s) {
-  const names = []
-  if (s.format.via !== 'off') names.push('формат')
-  if (s.length.via !== 'off') names.push('длина')
-  if (s.stop.via !== 'off') names.push('стоп')
-  return names
-}
-
 export function describeSettings(s) {
   const badges = []
   const { format, length, stop } = s
   const seq = stop.sequence
-  if (format.via === 'prompt' || format.via === 'both') {
+  if (format.via === 'prompt') {
     badges.push({ tone: 'prompt', text: `формат: ${FORMAT_KINDS[format.kind]} — промпт` })
   }
-  if (format.via === 'api' || format.via === 'both') {
+  if (format.via === 'api') {
     badges.push({ tone: 'api', text: 'response_format: json_object — API' })
   }
-  if (length.via === 'prompt' || length.via === 'both') {
+  if (length.via === 'prompt') {
     badges.push({ tone: 'prompt', text: `≤ ${length.words} ${plural(length.words, ['слово', 'слова', 'слов'])} — промпт` })
   }
-  if (length.via === 'api' || length.via === 'both') {
+  if (length.via === 'api') {
     badges.push({ tone: 'api', text: `max_tokens: ${length.max_tokens} — API` })
   }
-  if (stop.via === 'prompt' || stop.via === 'both') {
+  if (stop.via === 'prompt') {
     badges.push({ tone: 'prompt', text: `стоп перед «${seq}» — промпт` })
   }
-  if (stop.via === 'api' || stop.via === 'both') {
+  if (stop.via === 'api') {
     badges.push({ tone: 'api', text: `stop: «${seq}» — API` })
   }
   return badges

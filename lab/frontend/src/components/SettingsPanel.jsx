@@ -24,7 +24,7 @@ export default function SettingsPanel({ settings, setSettings }) {
     setSettings(prev => ({ ...prev, [name]: { ...prev[name], ...patch } }))
 
   const pickFormatKind = (kind) => {
-    const downgrade = kind !== 'json' && (settings.format.via === 'api' || settings.format.via === 'both')
+    const downgrade = kind !== 'json' && settings.format.via === 'api'
     setControl('format', { kind, via: downgrade ? 'prompt' : settings.format.via })
   }
 
@@ -46,18 +46,20 @@ export default function SettingsPanel({ settings, setSettings }) {
                 </button>
               ))}
             </div>
-            <label className="temp-wrap">
-              temperature
-              <input
-                type="number"
-                min="0"
-                max="1"
-                step="0.1"
-                value={settings.temperature}
-                onChange={e => set('temperature', e.target.value)}
-              />
-            </label>
           </div>
+        </div>
+        <div className="set-mid" style={{ marginTop: '8px' }}>
+          <label className="temp-wrap">
+            temperature
+            <input
+              type="number"
+              min="0"
+              max="1"
+              step="0.1"
+              value={settings.temperature}
+              onChange={e => set('temperature', e.target.value)}
+            />
+          </label>
         </div>
         <p className={`set-note${MODEL_NOTES[settings.model].warn ? ' set-note--warn' : ''}`}>
           {MODEL_NOTES[settings.model].text}
@@ -67,29 +69,29 @@ export default function SettingsPanel({ settings, setSettings }) {
       <div className="set-row">
         <div className="set-head">
           <span className="set-name">Формат ответа</span>
-          <div className="set-mid">
-            <select
-              className="input input--sm"
-              value={settings.format.kind}
-              onChange={e => pickFormatKind(e.target.value)}
-              aria-label="Формат"
-            >
-              {Object.entries(FORMAT_KINDS).map(([k, v]) => (
-                <option key={k} value={k}>{v}</option>
-              ))}
-            </select>
-            <Seg
-              options={VIAS}
-              value={settings.format.via}
-              disabledIds={settings.format.kind === 'json' ? [] : ['api', 'both']}
-              onChange={v => setControl('format', { via: v })}
-            />
-          </div>
+          <Seg
+            options={VIAS}
+            value={settings.format.via}
+            disabledIds={settings.format.kind === 'json' ? [] : ['api']}
+            onChange={v => setControl('format', { via: v })}
+          />
         </div>
-        {(settings.format.via === 'prompt' || settings.format.via === 'both') && (
+        <div className="set-mid" style={{ marginTop: '8px' }}>
+          <select
+            className="input input--sm"
+            value={settings.format.kind}
+            onChange={e => pickFormatKind(e.target.value)}
+            aria-label="Формат"
+          >
+            {Object.entries(FORMAT_KINDS).map(([k, v]) => (
+              <option key={k} value={k}>{v}</option>
+            ))}
+          </select>
+        </div>
+        {settings.format.via === 'prompt' && (
           <p className="set-note">к промпту добавится: «{FORMAT_INSTRUCTIONS[settings.format.kind]}»</p>
         )}
-        {(settings.format.via === 'api' || settings.format.via === 'both') && (
+        {settings.format.via === 'api' && (
           <p className="set-note">на API: response_format: {'{type: json_object}'} — парсируемый JSON гарантирует сервер</p>
         )}
       </div>
@@ -101,7 +103,7 @@ export default function SettingsPanel({ settings, setSettings }) {
         </div>
         {settings.length.via !== 'off' && (
           <div className="set-fields">
-            {(settings.length.via === 'prompt' || settings.length.via === 'both') && (
+            {settings.length.via === 'prompt' && (
               <label className="set-field">
                 <span className="mini-label">слов в промпте</span>
                 <input
@@ -114,7 +116,7 @@ export default function SettingsPanel({ settings, setSettings }) {
                 />
               </label>
             )}
-            {(settings.length.via === 'api' || settings.length.via === 'both') && (
+            {settings.length.via === 'api' && (
               <label className="set-field">
                 <span className="mini-label">max_tokens на API</span>
                 <input
@@ -127,7 +129,7 @@ export default function SettingsPanel({ settings, setSettings }) {
                 />
               </label>
             )}
-            {(settings.length.via === 'prompt' || settings.length.via === 'both') && (
+            {settings.length.via === 'prompt' && (
               <p className="set-note">к промпту добавится: «Ответь не более чем {settings.length.words} словами.»</p>
             )}
           </div>
@@ -151,10 +153,12 @@ export default function SettingsPanel({ settings, setSettings }) {
                 onChange={e => setControl('stop', { sequence: e.target.value })}
               />
             </label>
-            <p className="set-note">
-              на API: stop: [«{settings.stop.sequence}»] — генерация обрывается на первом вхождении;
-              в промпт добавится просьба закончить перед ней
-            </p>
+            {settings.stop.via === 'api' && (
+              <p className="set-note">на API: stop: [«{settings.stop.sequence}»] — генерация обрывается на первом вхождении</p>
+            )}
+            {settings.stop.via === 'prompt' && (
+              <p className="set-note">в промпт добавится просьба закончить непосредственно перед «{settings.stop.sequence}»</p>
+            )}
           </div>
         )}
       </div>

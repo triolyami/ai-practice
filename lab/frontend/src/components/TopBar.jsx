@@ -14,7 +14,7 @@ export default function TopBar({ onNewChat, hasChat }) {
           >
             новый чат
           </button>
-          <a className="toplink" href="/day2">день 2</a>
+          <a className="toplink" href="/day2">выводы</a>
           <a
             className="toplink"
             href="https://github.com/triolyami/ai-practice"

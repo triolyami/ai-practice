@@ -1,9 +1,6 @@
-import { useEffect, useRef, useState } from 'react'
-import { activeControlNames } from '../lib/constants.js'
-import SettingsPanel from './SettingsPanel.jsx'
+import { useEffect, useRef } from 'react'
 
-export default function Composer({ settings, setSettings, busy, onSend, onStop, input, setInput }) {
-  const [open, setOpen] = useState(false)
+export default function Composer({ busy, onSend, onStop, input, setInput }) {
   const taRef = useRef(null)
 
   useEffect(() => {
@@ -27,23 +24,11 @@ export default function Composer({ settings, setSettings, busy, onSend, onStop, 
     }
   }
 
-  const active = activeControlNames(settings)
   const canSend = !busy && input.trim().length > 0
 
   return (
     <div className="composer">
       <div className="composer-card">
-        {open && <SettingsPanel settings={settings} setSettings={setSettings} />}
-        <div className="composer-toolbar">
-          <button
-            type="button"
-            className={`chip-btn${open ? ' chip-btn--on' : ''}`}
-            onClick={() => setOpen(o => !o)}
-          >
-            настройки{active.length > 0 ? ` · ${active.join(', ')}` : ''}
-          </button>
-          <span className="composer-hint">Enter — отправить, Shift+Enter — перенос</span>
-        </div>
         <div className="composer-row">
           <textarea
             ref={taRef}
@@ -64,6 +49,7 @@ export default function Composer({ settings, setSettings, busy, onSend, onStop, 
             {busy ? '■' : '↑'}
           </button>
         </div>
+        <p className="composer-hint">Enter — отправить, Shift+Enter — перенос</p>
       </div>
     </div>
   )

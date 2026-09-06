@@ -1,7 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { plural } from '../lib/format.js'
 import { describeSettings } from '../lib/constants.js'
-import Footer from './Footer.jsx'
 
 const EXAMPLES = [
   'Расскажи, как устроен интернет',
@@ -51,7 +50,7 @@ function MetaLine({ meta, content }) {
   return (
     <div className="meta">
       <span>{bits.join(' · ')}</span>
-      {swallowed && <span className="meta-warn">пусто: токены ушли в скрытые рассуждения (находка дня 2)</span>}
+      {swallowed && <span className="meta-warn">пусто: токены ушли в скрытые рассуждения</span>}
       {meta.request && (
         <details className="request">
           <summary>что ушло в модель</summary>
@@ -101,13 +100,13 @@ export default function Chat({ messages, chat, input, setInput }) {
       <div className="chat-col">
         {messages.length === 0 && !running && (
           <div className="welcome">
-            <span className="pill">интерактивный день 2</span>
+            <span className="pill">интерактивная лаборатория</span>
             <h1>Чат с ограничителями</h1>
             <p className="lead">
-              Один запрос — один ответ. В настройках под полем ввода включите формат,
-              лимит длины или стоп-последовательность — через инструкцию в промпте,
-              параметр API или оба сразу, в любой комбинации. Настройки применяются
-              к конкретному сообщению, история диалога сохраняется.
+              Модель видит всю историю диалога и отвечает с учётом предыдущих
+              сообщений. В панели слева включите формат, лимит длины или
+              стоп-последовательность — инструкцией в промпте или параметром
+              API; настройки применяются к конкретному сообщению.
             </p>
             <div className="examples">
               {EXAMPLES.map(ex => (
@@ -132,8 +131,6 @@ export default function Chat({ messages, chat, input, setInput }) {
               : <div className="runline"><span className="dot" />модель генерирует ответ…</div>}
           </div>
         )}
-
-        <Footer />
       </div>
     </main>
   )
