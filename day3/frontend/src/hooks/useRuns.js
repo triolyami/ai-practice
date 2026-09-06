@@ -14,7 +14,7 @@ const IDLE = {
 
 export function useRuns() {
   const [runs, setRuns] = useState({})
-  const controllerRef = useRef(null)
+  const controllersRef = useRef(new Set())
 
   const patch = useCallback((id, p) => {
     setRuns(prev => ({ ...prev, [id]: { ...IDLE, ...(prev[id] || {}), ...p } }))
@@ -25,7 +25,7 @@ export function useRuns() {
   }, [])
 
   const abort = useCallback(() => {
-    controllerRef.current?.abort()
+    for (const c of controllersRef.current) c.abort()
   }, [])
 
   const drop = useCallback(id => {
@@ -41,7 +41,7 @@ export function useRuns() {
     const id = item.id
     patch(id, { ...IDLE, status: 'running' })
     const controller = new AbortController()
-    controllerRef.current = controller
+    controllersRef.current.add(controller)
 
     const body =
       item.kind === 'pipeline'
@@ -138,6 +138,8 @@ export function useRuns() {
         }
         apply({ status: 'error', error: err.message })
         return 'error'
+      } finally {
+        controllersRef.current.delete(controller)
       }
     }
 

@@ -4,6 +4,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+from openai import BadRequestError
+
 from config import DEFAULT_MODEL, MODELS, complete
 from puzzle import SOLUTION, TASK
 
@@ -21,7 +23,8 @@ PORT = 7862
 MAX_BODY = 60_000
 MAX_TASK = 4000
 STEP_DEADLINE_S = 240
-JUDGE_MODEL = "glm-4.6"
+MAX_CONCURRENT = 6
+JUDGE_MODEL = "glm-5.3"
 JUDGE_MAX_BODY = 400_000
 JUDGE_MAX_ANSWER = 12_000
 JUDGE_MAX_ANSWERS = 12
@@ -209,7 +212,7 @@ class ClientGone(Exception):
 
 class Day3Handler(BaseHTTPRequestHandler):
     protocol_version = "HTTP/1.0"
-    solve_lock = threading.Lock()
+    solve_slots = threading.BoundedSemaphore(MAX_CONCURRENT)
 
     def log_message(self, fmt, *args):
         print(f"[{time.strftime('%H:%M:%S')}] {self.address_string()} {fmt % args}", flush=True)
@@ -290,25 +293,25 @@ class Day3Handler(BaseHTTPRequestHandler):
                 if err:
                     self._json(400, {"error": err})
                     return
-                if not self.solve_lock.acquire(blocking=False):
-                    self._json(409, {"error": "Модель ещё отвечает на предыдущий запрос — подождите."})
+                if not self.solve_slots.acquire(blocking=False):
+                    self._json(409, {"error": "Все слоты заняты — подождите завершения текущих запросов."})
                     return
                 try:
                     self._stream_pipeline(pid, task, plan, model)
                 finally:
-                    self.solve_lock.release()
+                    self.solve_slots.release()
                 return
             task, content, model, err = parse_solve(body)
             if err:
                 self._json(400, {"error": err})
                 return
-            if not self.solve_lock.acquire(blocking=False):
-                self._json(409, {"error": "Модель ещё отвечает на предыдущий запрос — подождите."})
+            if not self.solve_slots.acquire(blocking=False):
+                self._json(409, {"error": "Все слоты заняты — подождите завершения текущих запросов."})
                 return
             try:
                 self._stream_solve(task, content, model)
             finally:
-                self.solve_lock.release()
+                self.solve_slots.release()
         elif path == "/api/judge":
             body = self._read_body(JUDGE_MAX_BODY)
             if body is None:
@@ -317,20 +320,23 @@ class Day3Handler(BaseHTTPRequestHandler):
             if err:
                 self._json(400, {"error": err})
                 return
-            if not self.solve_lock.acquire(blocking=False):
-                self._json(409, {"error": "Модель ещё отвечает на предыдущий запрос — подождите."})
+            if not self.solve_slots.acquire(blocking=False):
+                self._json(409, {"error": "Все слоты заняты — подождите завершения текущих запросов."})
                 return
             try:
                 self._run_judge(task, answers)
             finally:
-                self.solve_lock.release()
+                self.solve_slots.release()
         else:
             self._json(404, {"error": "Нет такого адреса"})
 
     def _judge_answer(self, prompt: str) -> tuple:
         messages = [{"role": "user", "content": prompt}]
         params = {"temperature": 0, "response_format": {"type": "json_object"}}
-        stream = complete(messages, model=JUDGE_MODEL, stream=True, **params)
+        try:
+            stream = complete(messages, model=JUDGE_MODEL, stream=True, **params)
+        except BadRequestError:
+            stream = complete(messages, model=JUDGE_MODEL, stream=True, temperature=0)
         started = time.perf_counter()
         parts = []
         usage = None

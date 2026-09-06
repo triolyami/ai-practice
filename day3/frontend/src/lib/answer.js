@@ -1,20 +1,43 @@
 import { PEOPLE } from './constants.js'
 
-const KEYWORD_RE = /(?<![а-яё])(финальное решение группы|финальное решение|финальный ответ группы|финальный ответ|итоговый ответ|ответ группы|ответ)(?![а-яё])/gi
+const KEYWORD_RE =
+  /(?<![а-яё])(финальное решение группы|финальное решение|финальный ответ группы|финальный ответ|итоговый ответ|окончательный ответ|ответ группы|финальный итог|итог|ответ)(?![а-яё])/i
+const LABEL_PREFIX_RE = /^[\s>#*_"'«»`(|[\]~—–\-.,;:0-9]*$/
+const LEADING_JUNK_RE = /^[\s:;.,)"'»\]+}*#_—–-]+/
 const ANY_AGE_RE = /\b(25|28|31|34)\b/
+
+function isLabelOnly(line) {
+  const m = line.match(KEYWORD_RE)
+  if (!m) return false
+  if (!LABEL_PREFIX_RE.test(line.slice(0, m.index))) return false
+  return !line.slice(m.index + m[0].length).replace(LEADING_JUNK_RE, '').trim()
+}
+
+function lastBlock(lines) {
+  let end = lines.length - 1
+  for (;;) {
+    while (end >= 0 && !lines[end].trim()) end--
+    if (end < 0) return null
+    if (!isLabelOnly(lines[end])) break
+    end--
+  }
+  let start = end
+  while (start > 0 && lines[start - 1].trim()) start--
+  return lines.slice(start, end + 1).join('\n').trim() || null
+}
 
 export function extractAnswer(text) {
   if (!text) return null
-  let last = null
-  let m
-  while ((m = KEYWORD_RE.exec(text)) !== null) last = m
-  KEYWORD_RE.lastIndex = 0
-  if (!last) return null
-  const rest = text
-    .slice(last.index + last[0].length)
-    .replace(/^[\s:—–#*_\-»«"]+/, '')
-    .trim()
-  return rest || null
+  const lines = text.split('\n')
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const m = lines[i].match(KEYWORD_RE)
+    if (!m) continue
+    if (!LABEL_PREFIX_RE.test(lines[i].slice(0, m.index))) continue
+    const tail = lines[i].slice(m.index + m[0].length).replace(LEADING_JUNK_RE, '').trim()
+    const rest = lines.slice(i + 1).join('\n').trim()
+    if (tail || rest) return [tail, rest].filter(Boolean).join('\n')
+  }
+  return lastBlock(lines)
 }
 
 export function checkVerdict(text) {

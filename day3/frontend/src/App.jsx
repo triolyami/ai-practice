@@ -18,7 +18,6 @@ export default function App() {
   const [frozenAt, setFrozenAt] = useState(null)
   const [selected, setSelected] = useState(() => agents.map(a => a.id))
   const { runs, replaceAll, run, abort, drop } = useRuns()
-  const stopRef = useRef(false)
   const persistRef = useRef('')
   const [judge, setJudge] = useState(null)
 
@@ -91,13 +90,9 @@ export default function App() {
 
   const busy = Object.values(runs).some(r => r.status === 'running')
   const judgeBusy = judge?.status === 'running'
-  const judgeCandidates = Object.entries(runs)
-    .filter(([, r]) => r.status === 'done' && r.text?.trim())
-    .map(([id, r]) => ({
-      id,
-      name: universe.find(u => u.id === id)?.name || id,
-      text: r.text.slice(0, 12000),
-    }))
+  const judgeCandidates = universe
+    .filter(u => selected.includes(u.id) && runs[u.id]?.status === 'done' && runs[u.id]?.text?.trim())
+    .map(u => ({ id: u.id, name: u.name || u.id, text: runs[u.id].text.slice(0, 12000) }))
   const hasLocal = Object.values(runs).some(
     r => !r.frozen && (r.status === 'done' || r.status === 'error'),
   )
@@ -109,11 +104,7 @@ export default function App() {
 
   const runMany = useCallback(
     async list => {
-      stopRef.current = false
-      for (const item of list) {
-        if (stopRef.current) break
-        await run(item, task)
-      }
+      await Promise.all(list.map(item => run(item, task)))
     },
     [run, task],
   )
@@ -130,7 +121,6 @@ export default function App() {
   }, [runMany, selected, universe])
 
   const stopAll = useCallback(() => {
-    stopRef.current = true
     abort()
   }, [abort])
 
@@ -146,7 +136,6 @@ export default function App() {
   }, [judgeCandidates, task])
 
   const startOwn = useCallback(() => {
-    stopRef.current = true
     abort()
     clearState()
     persistRef.current = ''
