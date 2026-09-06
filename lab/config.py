@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 
-from openai import OpenAI
+from openai import BadRequestError, OpenAI
 
 
 def load_env(path: str = ".env") -> None:
@@ -39,10 +39,30 @@ MODELS = {
 DEFAULT_MODEL = "glm-4.6"
 
 
-def complete(messages: list, model: str, **params):
-    return client.chat.completions.create(
-        model=model,
-        messages=messages,
-        extra_body={"thinking": MODELS[model]["thinking"]},
-        **params,
-    )
+def complete(messages: list, model: str, stream: bool = False, **params):
+    extra = {"thinking": MODELS[model]["thinking"]}
+    if not stream:
+        return client.chat.completions.create(
+            model=model,
+            messages=messages,
+            extra_body=extra,
+            **params,
+        )
+    extra["stream_options"] = {"include_usage": True}
+    try:
+        return client.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+            extra_body=extra,
+            **params,
+        )
+    except BadRequestError:
+        extra.pop("stream_options", None)
+        return client.chat.completions.create(
+            model=model,
+            messages=messages,
+            stream=True,
+            extra_body=extra,
+            **params,
+        )
