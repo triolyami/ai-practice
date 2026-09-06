@@ -4,3 +4,5 @@ __pycache__/
 lab/frontend/node_modules/
 day3/frontend/node_modules/
 day3/server.log
+day4/frontend/node_modules/
+day4/server.log
