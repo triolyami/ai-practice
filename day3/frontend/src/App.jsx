@@ -1,24 +1,25 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRuns } from './hooks/useRuns.js'
-import { DEFAULT_TASK, STRATEGIES } from './lib/constants.js'
+import { useAgents } from './hooks/useAgents.js'
+import { DEFAULT_AGENTS, DEFAULT_TASK } from './lib/constants.js'
 import { clearState, loadState, saveState } from './lib/storage.js'
 import TopBar from './components/TopBar.jsx'
 import TaskCard from './components/TaskCard.jsx'
-import StrategyCard from './components/StrategyCard.jsx'
+import AgentCard from './components/AgentCard.jsx'
+import AgentSidebar from './components/AgentSidebar.jsx'
 import Compare from './components/Compare.jsx'
 
-const ALL_IDS = STRATEGIES.map(st => st.id)
-const DEFAULT_SELECTED = ALL_IDS.filter(id => STRATEGIES.find(st => st.id === id).main)
-
 export default function App() {
+  const { agents, setAgents } = useAgents()
   const [task, setTask] = useState(DEFAULT_TASK)
   const [frozenAt, setFrozenAt] = useState(null)
-  const [selected, setSelected] = useState(DEFAULT_SELECTED)
-  const { runs, replaceAll, run, abort } = useRuns()
+  const [selected, setSelected] = useState(() => agents.map(a => a.id))
+  const { runs, replaceAll, run, abort, drop } = useRuns()
   const stopRef = useRef(false)
   const persistRef = useRef('')
 
   useEffect(() => {
+    const ids = new Set(agents.map(a => a.id))
     const saved = loadState()
     if (saved) {
       setTask(saved.task)
@@ -31,6 +32,7 @@ export default function App() {
         if (!data || !Array.isArray(data.runs)) return
         const restored = {}
         for (const r of data.runs) {
+          if (!ids.has(r.id)) continue
           restored[r.id] = {
             status: 'done',
             text: r.content,
@@ -79,26 +81,26 @@ export default function App() {
   }, [])
 
   const runMany = useCallback(
-    async ids => {
+    async list => {
       stopRef.current = false
-      for (const id of ids) {
+      for (const agent of list) {
         if (stopRef.current) break
-        await run(id, task)
+        await run(agent, task)
       }
     },
     [run, task],
   )
 
   const runSelected = useCallback(() => {
-    const ids = ALL_IDS.filter(id => selected.includes(id))
-    if (!ids.length) return
+    const list = agents.filter(a => selected.includes(a.id))
+    if (!list.length) return
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
-        document.getElementById(`strat-${ids[0]}`)?.scrollIntoView({ block: 'start' })
+        document.getElementById(`strat-${list[0].id}`)?.scrollIntoView({ block: 'start' })
       })
     })
-    runMany(ids)
-  }, [runMany, selected])
+    runMany(list)
+  }, [agents, runMany, selected])
 
   const stopAll = useCallback(() => {
     stopRef.current = true
@@ -113,8 +115,40 @@ export default function App() {
     replaceAll({})
     setTask(DEFAULT_TASK)
     setFrozenAt(null)
-    setSelected(DEFAULT_SELECTED)
-  }, [abort, replaceAll])
+    setSelected(agents.map(a => a.id))
+  }, [abort, replaceAll, agents])
+
+  const createAgent = useCallback(
+    agent => {
+      setAgents(prev => [...prev, agent])
+      setSelected(prev => [...prev, agent.id])
+    },
+    [setAgents],
+  )
+
+  const saveAgent = useCallback(
+    (id, draft) => {
+      setAgents(prev => prev.map(a => (a.id === id ? { ...a, ...draft } : a)))
+    },
+    [setAgents],
+  )
+
+  const deleteAgent = useCallback(
+    id => {
+      setAgents(prev => prev.filter(a => a.id !== id))
+      setSelected(prev => prev.filter(x => x !== id))
+      drop(id)
+    },
+    [drop, setAgents],
+  )
+
+  const resetAgents = useCallback(() => {
+    const fresh = DEFAULT_AGENTS.map(a => ({ ...a }))
+    const ids = new Set(fresh.map(a => a.id))
+    setAgents(fresh)
+    setSelected(fresh.map(a => a.id))
+    replaceAll(Object.fromEntries(Object.entries(runs).filter(([id]) => ids.has(id))))
+  }, [replaceAll, runs, setAgents])
 
   const frozenStamp = frozenAt
     ? new Date(frozenAt).toLocaleString('ru-RU', {
@@ -126,84 +160,82 @@ export default function App() {
     : null
 
   const builtIn = task.trim() === DEFAULT_TASK.trim()
+  const visible = agents.filter(a => selected.includes(a.id))
 
   return (
     <div className="app">
       <TopBar />
-      <main className="page-scroll">
-        <div className="col">
-          <header className="hero">
-            <span className="pill">день 3 · разные способы рассуждения</span>
-            <h1>Четыре способа решить одну задачу</h1>
-            <p className="lead">
-              Одна логическая задача решается через API четырьмя способами из
-              задания: прямой ответ, пошаговое решение, предварительный промпт и
-              группа экспертов — плюс два дополнительных эксперимента:
-              мультиагентные эксперты и нативное рассуждение glm-5.3. Отметьте
-              нужные способы в карточке задачи и запустите; в конце страница
-              сравнивает финальные ответы с эталоном.
-            </p>
-          </header>
+      <div className="layout">
+        <AgentSidebar
+          agents={agents}
+          busy={busy}
+          onCreate={createAgent}
+          onSave={saveAgent}
+          onDelete={deleteAgent}
+          onReset={resetAgents}
+        />
+        <main className="page-scroll">
+          <div className="col">
+            <header className="hero">
+              <span className="pill">день 3 · разные способы рассуждения</span>
+              <h1>Четыре способа решить одну задачу</h1>
+              <p className="lead">
+                Одна логическая задача решается через API агентами: у каждого —
+                своя инструкция и модель, запуск — один запрос. Четыре агента
+                встроены по заданию: прямой ответ, пошаговое решение, группа
+                экспертов и нативное рассуждение glm-5.3. Своих агентов можно
+                добавить в панели слева; отметьте нужных в карточке задачи и
+                запустите, в конце страница сравнивает финальные ответы с эталоном.
+              </p>
+            </header>
 
-          {frozenStamp && !hasLocal && (
-            <div className="banner">
-              <span>показан замороженный прогон от {frozenStamp}</span>
-              <button className="chip-btn" onClick={startOwn}>
-                начать свой прогон
-              </button>
+            {frozenStamp && !hasLocal && (
+              <div className="banner">
+                <span>показан замороженный прогон от {frozenStamp}</span>
+                <button className="chip-btn" onClick={startOwn}>
+                  начать свой прогон
+                </button>
+              </div>
+            )}
+
+            <TaskCard
+              task={task}
+              setTask={setTask}
+              busy={busy}
+              hasRuns={hasRuns}
+              agents={agents}
+              selected={selected}
+              onToggle={toggleSel}
+              onRun={runSelected}
+              onStop={stopAll}
+              onReset={startOwn}
+            />
+
+            <div className="group-label">выбранные агенты</div>
+            <div className="strat-grid">
+              {visible.map(a => (
+                <AgentCard
+                  key={a.id}
+                  agent={a}
+                  state={runs[a.id]}
+                  onRun={() => run(a, task)}
+                  busy={busy}
+                  builtIn={builtIn}
+                />
+              ))}
             </div>
-          )}
 
-          <TaskCard
-            task={task}
-            setTask={setTask}
-            busy={busy}
-            hasRuns={hasRuns}
-            selected={selected}
-            onToggle={toggleSel}
-            onRun={runSelected}
-            onStop={stopAll}
-            onReset={startOwn}
-          />
+            <Compare runs={runs} task={task} agents={agents} selected={selected} />
 
-          <div className="group-label">способы из задания</div>
-          <div className="strat-grid">
-            {STRATEGIES.filter(st => st.main).map(st => (
-              <StrategyCard
-                key={st.id}
-                strategy={st}
-                state={runs[st.id]}
-                onRun={() => run(st.id, task)}
-                busy={busy}
-                builtIn={builtIn}
-              />
-            ))}
+            <footer className="page-foot">
+              агент — это один запрос: инструкция плюс задача; модели glm-4.6
+              (thinking выключен) и glm-5.3 (effort low); задача и эталон — в{' '}
+              <code>day3/puzzle.py</code>, проверка единственности —{' '}
+              <code>day3/verify.py</code>
+            </footer>
           </div>
-
-          <div className="group-label">дополнительные эксперименты</div>
-          <div className="strat-grid">
-            {STRATEGIES.filter(st => !st.main).map(st => (
-              <StrategyCard
-                key={st.id}
-                strategy={st}
-                state={runs[st.id]}
-                onRun={() => run(st.id, task)}
-                busy={busy}
-                builtIn={builtIn}
-              />
-            ))}
-          </div>
-
-          <Compare runs={runs} task={task} />
-
-          <footer className="page-foot">
-            модели: glm-4.6 (thinking выключен) для способов из задания,
-            glm-5.3 (effort low) для нативного рассуждения; задача и эталон — в{' '}
-            <code>day3/puzzle.py</code>, проверка единственности —{' '}
-            <code>day3/verify.py</code>
-          </footer>
-        </div>
-      </main>
+        </main>
+      </div>
     </div>
   )
 }

@@ -28,8 +28,18 @@ export function useRuns() {
     controllerRef.current?.abort()
   }, [])
 
-  const run = useCallback((strategy, task) => {
-    patch(strategy, { ...IDLE, status: 'running' })
+  const drop = useCallback(id => {
+    setRuns(prev => {
+      if (!(id in prev)) return prev
+      const next = { ...prev }
+      delete next[id]
+      return next
+    })
+  }, [])
+
+  const run = useCallback((agent, task) => {
+    const id = agent.id
+    patch(id, { ...IDLE, status: 'running' })
     const controller = new AbortController()
     controllerRef.current = controller
 
@@ -39,7 +49,7 @@ export function useRuns() {
       let finalText = null
       let finalMeta = null
 
-      const apply = p => patch(strategy, p)
+      const apply = p => patch(id, p)
       const setPhase = (name, p) => {
         phases = phases.map(ph => (ph.name === name ? { ...ph, ...p } : ph))
         apply({ phases })
@@ -49,7 +59,7 @@ export function useRuns() {
         const res = await fetch('/api/solve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ strategy, task }),
+          body: JSON.stringify({ task, agent }),
           signal: controller.signal,
         })
         if (!res.ok) {
@@ -115,5 +125,5 @@ export function useRuns() {
     return load()
   }, [patch])
 
-  return { runs, patch, replaceAll, run, abort }
+  return { runs, patch, replaceAll, run, abort, drop }
 }

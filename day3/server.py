@@ -4,9 +4,8 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from config import MODELS, complete
+from config import DEFAULT_MODEL, MODELS, complete
 from puzzle import TASK
-from strategies import STRATEGIES, plan
 
 DAY3_DIR = Path(__file__).parent
 DIST_DIR = DAY3_DIR / "frontend" / "dist"
@@ -110,15 +109,15 @@ class Day3Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             self._json(400, {"error": "Тело запроса — не JSON-объект"})
             return
-        task, strategy, err = parse_solve(body)
+        task, content, model, err = parse_solve(body)
         if err:
             self._json(400, {"error": err})
             return
         if not self.solve_lock.acquire(blocking=False):
-            self._json(409, {"error": "Модель ещё решает предыдущий способ — подождите."})
+            self._json(409, {"error": "Модель ещё отвечает на предыдущий запрос — подождите."})
             return
         try:
-            self._stream_solve(task, strategy)
+            self._stream_solve(task, content, model)
         finally:
             self.solve_lock.release()
 
@@ -130,8 +129,8 @@ class Day3Handler(BaseHTTPRequestHandler):
         except (BrokenPipeError, ConnectionResetError, OSError):
             raise ClientGone()
 
-    def _stream_solve(self, task: str, strategy: str) -> None:
-        print(f"-> способ {strategy}, задача {len(task)} симв.", flush=True)
+    def _stream_solve(self, task: str, content: str, model: str) -> None:
+        print(f"-> агент {model}, задача {len(task)} симв.", flush=True)
         try:
             self.send_response(200)
             self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
@@ -141,39 +140,27 @@ class Day3Handler(BaseHTTPRequestHandler):
             return
 
         try:
-            steps = plan(task, strategy)
-            results = {}
-            phases = []
-            for step in steps:
-                phase = self._run_step(step, results)
-                if phase is None:
-                    return
-                phases.append(phase)
-                results[step["name"]] = phase["content"]
-            final = phases[-1]
+            phase = self._run_step("solve", content, model)
+            if phase is None:
+                return
             self._line({
                 "event": "done",
-                "strategy": strategy,
-                "content": final["content"],
-                "metrics": compute_metrics(final["content"]),
-                "steps": [
-                    {"name": p["name"], "content": p["content"], "meta": p["meta"], "request": p["request"]}
-                    for p in phases
-                ],
+                "content": phase["content"],
+                "metrics": compute_metrics(phase["content"]),
+                "steps": [phase],
             })
-            print(f"   готово: {strategy}, слов {compute_metrics(final['content'])['words']}", flush=True)
+            print(f"   готово: {model}, слов {compute_metrics(phase['content'])['words']}", flush=True)
         except ClientGone:
             print("   клиент отключился — генерация прервана", flush=True)
 
-    def _run_step(self, step: dict, results: dict) -> dict | None:
-        messages = step["build"](results)
-        model = step["model"]
+    def _run_step(self, name: str, content: str, model: str) -> dict | None:
+        messages = [{"role": "user", "content": content}]
         params = {}
-        print(f"   шаг {step['name']}: модель {model}", flush=True)
+        print(f"   шаг {name}: модель {model}", flush=True)
         try:
             stream = complete(messages, model=model, stream=True, temperature=0, **params)
         except Exception as exc:
-            self._line({"event": "error", "step": step["name"], "message": f"Модель не приняла запрос: {str(exc)[:400]}"})
+            self._line({"event": "error", "step": name, "message": f"Модель не приняла запрос: {str(exc)[:400]}"})
             return None
 
         started = time.perf_counter()
@@ -183,14 +170,14 @@ class Day3Handler(BaseHTTPRequestHandler):
         try:
             self._line({
                 "event": "start",
-                "step": step["name"],
+                "step": name,
                 "meta": {"model": model, "thinking": "disabled" if model == "glm-4.6" else "effort: low"},
-                "request": {"content": messages[-1]["content"], "params": params},
+                "request": {"content": content, "params": params},
             })
             deadline = time.monotonic() + STEP_DEADLINE_S
             for chunk in stream:
                 if time.monotonic() > deadline:
-                    self._line({"event": "error", "step": step["name"], "message": "Истек лимит времени ответа"})
+                    self._line({"event": "error", "step": name, "message": "Истек лимит времени ответа"})
                     return None
                 if getattr(chunk, "usage", None):
                     usage = chunk.usage
@@ -202,12 +189,11 @@ class Day3Handler(BaseHTTPRequestHandler):
                 delta = choice.delta.content if choice.delta else None
                 if delta:
                     parts.append(delta)
-                    self._line({"event": "delta", "step": step["name"], "text": delta})
+                    self._line({"event": "delta", "step": name, "text": delta})
 
-            content = "".join(parts)
-            phase = {
-                "name": step["name"],
-                "content": content,
+            return {
+                "name": name,
+                "content": "".join(parts),
                 "meta": {
                     "model": model,
                     "finish_reason": finish_reason,
@@ -215,10 +201,8 @@ class Day3Handler(BaseHTTPRequestHandler):
                     "completion_tokens": usage.completion_tokens if usage else None,
                     "latency_ms": round((time.perf_counter() - started) * 1000),
                 },
-                "request": {"content": messages[-1]["content"], "params": params},
+                "request": {"content": content, "params": params},
             }
-            self._line({"event": "phase", **phase})
-            return phase
         except ClientGone:
             raise
         finally:
@@ -229,16 +213,26 @@ class Day3Handler(BaseHTTPRequestHandler):
 
 
 def parse_solve(body: dict) -> tuple:
-    strategy = body.get("strategy")
-    if strategy not in STRATEGIES:
-        return None, None, f"Неизвестный способ: {strategy}. Доступны: {', '.join(STRATEGIES)}."
     task = body.get("task", TASK)
     if not isinstance(task, str) or not task.strip():
-        return None, None, "Поле task должно быть непустой строкой."
+        return None, None, None, "Поле task должно быть непустой строкой."
     task = task.strip()
     if len(task) > MAX_TASK:
-        return None, None, f"Задача длиннее {MAX_TASK} символов."
-    return task, strategy, None
+        return None, None, None, f"Задача длиннее {MAX_TASK} символов."
+    agent = body.get("agent")
+    if agent is None:
+        agent = {}
+    if not isinstance(agent, dict):
+        return None, None, None, "Поле agent должно быть JSON-объектом."
+    model = agent.get("model")
+    if model not in MODELS:
+        model = DEFAULT_MODEL
+    instruction = agent.get("instruction", "")
+    if not isinstance(instruction, str):
+        instruction = ""
+    instruction = instruction.strip()
+    content = f"{instruction}\n\nЗадача:\n{task}" if instruction else task
+    return task, content, model, None
 
 
 def main():

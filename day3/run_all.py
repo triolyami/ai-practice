@@ -8,9 +8,25 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from config import complete
 from puzzle import GROUND_TRUTH, TASK
-from strategies import EXTRA_ORDER, MAIN_ORDER, STRATEGIES, plan
 
 RESULTS_PATH = Path(__file__).parent / "results.json"
+
+AGENTS = (
+    {"id": "baseline", "name": "Прямой ответ", "instruction": "", "model": "glm-4.6"},
+    {"id": "cot", "name": "Пошагово", "instruction": "Решай пошагово.", "model": "glm-4.6"},
+    {
+        "id": "experts",
+        "name": "Группа экспертов",
+        "instruction": "Задачу решает группа из трёх экспертов. Аналитик разбирает условия и фиксирует факты. Инженер строит на фактах решение задачи. Критик проверяет решение инженера на ошибки и даёт окончательный вердикт. Каждый эксперт должен предложить своё решение, после чего приведи финальный ответ группы.",
+        "model": "glm-4.6",
+    },
+    {"id": "thinking", "name": "Нативное рассуждение", "instruction": "", "model": "glm-5.3"},
+)
+
+
+def compose(task: str, instruction: str) -> str:
+    text = instruction.strip()
+    return f"{text}\n\nЗадача:\n{task}" if text else task
 
 
 def compute_metrics(content: str) -> dict:
@@ -18,54 +34,47 @@ def compute_metrics(content: str) -> dict:
     return {"chars": len(text), "words": len(text.split())}
 
 
-def run_strategy(task: str, strategy: str) -> dict:
-    phases = []
-    results = {}
-    for step in plan(task, strategy):
-        messages = step["build"](results)
-        started = time.perf_counter()
-        print(f"  {strategy} / {step['name']} ...", flush=True)
-        resp = complete(messages, model=step["model"], temperature=0)
-        content = resp.choices[0].message.content or ""
-        usage = resp.usage
-        phase = {
-            "name": step["name"],
-            "content": content,
-            "meta": {
-                "model": step["model"],
-                "finish_reason": resp.choices[0].finish_reason,
-                "prompt_tokens": usage.prompt_tokens if usage else None,
-                "completion_tokens": usage.completion_tokens if usage else None,
-                "latency_ms": round((time.perf_counter() - started) * 1000),
-            },
-            "request": {"content": messages[-1]["content"], "params": {}},
-        }
-        phases.append(phase)
-        results[step["name"]] = content
-        print(f"    готово: {phase['meta']['completion_tokens']} токенов, {phase['meta']['latency_ms']} мс", flush=True)
-    final = phases[-1]
-    return {
-        "id": strategy,
-        "title": STRATEGIES[strategy]["title"],
-        "content": final["content"],
-        "metrics": compute_metrics(final["content"]),
-        "phases": phases,
+def run_agent(task: str, agent: dict) -> dict:
+    content_text = compose(task, agent["instruction"])
+    messages = [{"role": "user", "content": content_text}]
+    started = time.perf_counter()
+    print(f"агент: {agent['id']} ({agent['model']}) ...", flush=True)
+    resp = complete(messages, model=agent["model"], temperature=0)
+    content = resp.choices[0].message.content or ""
+    usage = resp.usage
+    phase = {
+        "name": "solve",
+        "content": content,
         "meta": {
-            "model": final["meta"]["model"],
-            "finish_reason": final["meta"]["finish_reason"],
-            "prompt_tokens": sum(p["meta"]["prompt_tokens"] or 0 for p in phases) or None,
-            "completion_tokens": sum(p["meta"]["completion_tokens"] or 0 for p in phases) or None,
-            "latency_ms": sum(p["meta"]["latency_ms"] for p in phases),
+            "model": agent["model"],
+            "finish_reason": resp.choices[0].finish_reason,
+            "prompt_tokens": usage.prompt_tokens if usage else None,
+            "completion_tokens": usage.completion_tokens if usage else None,
+            "latency_ms": round((time.perf_counter() - started) * 1000),
+        },
+        "request": {"content": content_text, "params": {}},
+    }
+    print(f"    готово: {phase['meta']['completion_tokens']} токенов, {phase['meta']['latency_ms']} мс", flush=True)
+    return {
+        "id": agent["id"],
+        "title": agent["name"],
+        "content": content,
+        "metrics": compute_metrics(content),
+        "phases": [phase],
+        "meta": {
+            "model": phase["meta"]["model"],
+            "finish_reason": phase["meta"]["finish_reason"],
+            "prompt_tokens": phase["meta"]["prompt_tokens"],
+            "completion_tokens": phase["meta"]["completion_tokens"],
+            "latency_ms": phase["meta"]["latency_ms"],
         },
     }
 
 
 def main() -> None:
-    order = list(MAIN_ORDER) + list(EXTRA_ORDER)
     runs = []
-    for strategy in order:
-        print(f"способ: {strategy}", flush=True)
-        runs.append(run_strategy(TASK, strategy))
+    for agent in AGENTS:
+        runs.append(run_agent(TASK, agent))
     payload = {
         "meta": {
             "task": TASK,

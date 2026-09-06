@@ -1,6 +1,5 @@
 import { verdictFor } from '../lib/answer.js'
 import { plural } from '../lib/format.js'
-import { STEP_LABELS } from '../lib/constants.js'
 
 function MetaLine({ meta, phases }) {
   const bits = [meta.model]
@@ -30,42 +29,25 @@ const VERDICT_BADGES = {
   null: { cls: 'badge--unk', text: 'ответ не распознан' },
 }
 
-export default function StrategyCard({ strategy, state, onRun, busy, builtIn }) {
+export default function AgentCard({ agent, state, onRun, busy, builtIn }) {
   const s = state || { status: 'idle' }
   const phases = s.phases || []
-  const prev = phases.slice(0, -1)
   const mainPhase = phases[phases.length - 1]
   const running = s.status === 'running'
   const text = running ? mainPhase?.content || '' : s.text
   const verdict = verdictFor(s, builtIn)
 
   return (
-    <article id={`strat-${strategy.id}`} className={`strat-card${running ? ' strat-card--running' : ''}`}>
+    <article id={`strat-${agent.id}`} className={`strat-card${running ? ' strat-card--running' : ''}`}>
       <div className="strat-head">
         <div className="strat-head-text">
-          <h3 className="strat-title">{strategy.title}</h3>
-          <p className="strat-hint">{strategy.hint}</p>
+          <h3 className="strat-title">{agent.name || 'без названия'}</h3>
+          <p className="strat-hint">{agent.instruction || 'пусто — просто задача'}</p>
         </div>
-        <span className={`strat-model${strategy.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
-          {strategy.model}
+        <span className={`strat-model${agent.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
+          {agent.model}
         </span>
       </div>
-
-      {prev.map(p => (
-        <details key={p.name} className="phase">
-          <summary>
-            {STEP_LABELS[p.name] || p.name}
-            {p.meta?.latency_ms != null ? ` · ${(p.meta.latency_ms / 1000).toFixed(1)} с` : ''}
-          </summary>
-          <div className="phase-text">{p.content || '…'}</div>
-          {p.request && (
-            <details className="request">
-              <summary>что ушло в модель</summary>
-              <pre className="out">{p.request.content}</pre>
-            </details>
-          )}
-        </details>
-      ))}
 
       <div className="strat-body">
         {s.status === 'idle' && <p className="strat-empty">ещё не запускался</p>}

@@ -1,6 +1,6 @@
 import { extractAnswer, verdictFor } from '../lib/answer.js'
 import { truncate } from '../lib/format.js'
-import { DEFAULT_TASK, GROUND_TRUTH, STRATEGIES } from '../lib/constants.js'
+import { DEFAULT_TASK, GROUND_TRUTH } from '../lib/constants.js'
 
 function normAnswer(text) {
   if (!text) return ''
@@ -14,15 +14,16 @@ const VERDICT_CELL = {
   null: { cls: 'badge--unk', text: '?' },
 }
 
-export default function Compare({ runs, task }) {
-  const done = STRATEGIES.filter(st => runs[st.id]?.status === 'done')
+export default function Compare({ runs, task, agents, selected }) {
+  const done = agents.filter(a => selected.includes(a.id) && runs[a.id]?.status === 'done')
   if (done.length < 2) return null
 
   const builtIn = task.trim() === DEFAULT_TASK.trim()
-  const rows = done.map(st => {
-    const state = runs[st.id]
+  const rows = done.map(a => {
+    const state = runs[a.id]
     return {
-      ...st,
+      id: a.id,
+      name: a.name || 'без названия',
       answer: extractAnswer(state.text),
       verdict: verdictFor(state, builtIn),
       meta: state.meta,
@@ -44,7 +45,7 @@ export default function Compare({ runs, task }) {
       <table className="cmp-table">
         <thead>
           <tr>
-            <th>способ</th>
+            <th>агент</th>
             <th>финальный ответ</th>
             {builtIn && <th>совпало</th>}
             <th>время · токены</th>
@@ -55,7 +56,7 @@ export default function Compare({ runs, task }) {
             const cell = VERDICT_CELL[r.verdict === true ? 'true' : r.verdict === false ? 'false' : 'null']
             return (
               <tr key={r.id}>
-                <td>{r.title}</td>
+                <td>{r.name}</td>
                 <td className="cmp-answer" title={r.answer || ''}>
                   {r.answer
                     ? truncate(r.answer.replace(/\n+/g, ' ').replace(/[*#`$]+/g, ''), 140)
@@ -78,7 +79,7 @@ export default function Compare({ runs, task }) {
       </table>
       <p className="compare-concl">
         {builtIn
-          ? `с эталоном совпали ответы у ${okCount} из ${judged.length} способов.`
+          ? `с эталоном совпали ответы у ${okCount} из ${judged.length} агентов.`
           : 'задача не встроенная — сверка с эталоном недоступна, сравните решения глазами.'}
         {answers.length > 1 &&
           (sameAnswers
