@@ -40,7 +40,7 @@ export default function StrategyCard({ strategy, state, onRun, busy, builtIn }) 
   const verdict = verdictFor(s, builtIn)
 
   return (
-    <article className={`strat-card${running ? ' strat-card--running' : ''}`}>
+    <article id={`strat-${strategy.id}`} className={`strat-card${running ? ' strat-card--running' : ''}`}>
       <div className="strat-head">
         <div className="strat-head-text">
           <h3 className="strat-title">{strategy.title}</h3>
@@ -86,9 +86,11 @@ export default function StrategyCard({ strategy, state, onRun, busy, builtIn }) 
       </div>
 
       <div className="strat-foot">
-        <button className="chip-btn" onClick={onRun} disabled={busy}>
-          {s.status === 'idle' ? 'запустить' : 'перезапустить'}
-        </button>
+        {s.status !== 'idle' && (
+          <button className="chip-btn" onClick={onRun} disabled={busy}>
+            перезапустить
+          </button>
+        )}
         {builtIn && s.status === 'done' && (
           <span className={`badge ${VERDICT_BADGES[String(verdict)]?.cls || 'badge--unk'}`}>
             {(VERDICT_BADGES[String(verdict)] || VERDICT_BADGES.null).text}

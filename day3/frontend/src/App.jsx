@@ -1,15 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRuns } from './hooks/useRuns.js'
-import { DEFAULT_TASK, EXTRA_ORDER, MAIN_ORDER, STRATEGIES } from './lib/constants.js'
+import { DEFAULT_TASK, STRATEGIES } from './lib/constants.js'
 import { clearState, loadState, saveState } from './lib/storage.js'
 import TopBar from './components/TopBar.jsx'
 import TaskCard from './components/TaskCard.jsx'
 import StrategyCard from './components/StrategyCard.jsx'
 import Compare from './components/Compare.jsx'
 
+const ALL_IDS = STRATEGIES.map(st => st.id)
+const DEFAULT_SELECTED = ALL_IDS.filter(id => STRATEGIES.find(st => st.id === id).main)
+
 export default function App() {
   const [task, setTask] = useState(DEFAULT_TASK)
   const [frozenAt, setFrozenAt] = useState(null)
+  const [selected, setSelected] = useState(DEFAULT_SELECTED)
   const { runs, replaceAll, run, abort } = useRuns()
   const stopRef = useRef(false)
   const persistRef = useRef('')
@@ -70,6 +74,10 @@ export default function App() {
   )
   const hasRuns = Object.keys(runs).length > 0
 
+  const toggleSel = useCallback(id => {
+    setSelected(prev => (prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]))
+  }, [])
+
   const runMany = useCallback(
     async ids => {
       stopRef.current = false
@@ -80,6 +88,17 @@ export default function App() {
     },
     [run, task],
   )
+
+  const runSelected = useCallback(() => {
+    const ids = ALL_IDS.filter(id => selected.includes(id))
+    if (!ids.length) return
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.getElementById(`strat-${ids[0]}`)?.scrollIntoView({ block: 'start' })
+      })
+    })
+    runMany(ids)
+  }, [runMany, selected])
 
   const stopAll = useCallback(() => {
     stopRef.current = true
@@ -94,6 +113,7 @@ export default function App() {
     replaceAll({})
     setTask(DEFAULT_TASK)
     setFrozenAt(null)
+    setSelected(DEFAULT_SELECTED)
   }, [abort, replaceAll])
 
   const frozenStamp = frozenAt
@@ -118,9 +138,10 @@ export default function App() {
             <p className="lead">
               Одна логическая задача решается через API четырьмя способами из
               задания: прямой ответ, пошаговое решение, предварительный промпт и
-              группа экспертов. Ниже — два дополнительных эксперимента:
-              мультиагентные эксперты и нативное рассуждение glm-5.3. В конце
-              страница сравнивает финальные ответы с эталоном.
+              группа экспертов — плюс два дополнительных эксперимента:
+              мультиагентные эксперты и нативное рассуждение glm-5.3. Отметьте
+              нужные способы в карточке задачи и запустите; в конце страница
+              сравнивает финальные ответы с эталоном.
             </p>
           </header>
 
@@ -138,8 +159,9 @@ export default function App() {
             setTask={setTask}
             busy={busy}
             hasRuns={hasRuns}
-            onRunMain={() => runMany(MAIN_ORDER)}
-            onRunExtra={() => runMany(EXTRA_ORDER)}
+            selected={selected}
+            onToggle={toggleSel}
+            onRun={runSelected}
             onStop={stopAll}
             onReset={startOwn}
           />
