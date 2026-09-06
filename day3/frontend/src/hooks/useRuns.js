@@ -37,11 +37,30 @@ export function useRuns() {
     })
   }, [])
 
-  const run = useCallback((agent, task) => {
-    const id = agent.id
+  const run = useCallback((item, task) => {
+    const id = item.id
     patch(id, { ...IDLE, status: 'running' })
     const controller = new AbortController()
     controllerRef.current = controller
+
+    const body =
+      item.kind === 'pipeline'
+        ? {
+            task,
+            pipeline: {
+              id: item.id,
+              model: item.model,
+              instructions: Object.fromEntries(
+                Object.entries(item.instructions || {}).filter(
+                  ([, v]) => typeof v === 'string' && v.trim(),
+                ),
+              ),
+            },
+          }
+        : {
+            task,
+            agent: { id: item.id, name: item.name, instruction: item.instruction, model: item.model },
+          }
 
     const load = async () => {
       let phases = []
@@ -59,7 +78,7 @@ export function useRuns() {
         const res = await fetch('/api/solve', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ task, agent }),
+          body: JSON.stringify(body),
           signal: controller.signal,
         })
         if (!res.ok) {

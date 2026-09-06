@@ -1,5 +1,6 @@
 import { verdictFor } from '../lib/answer.js'
 import { plural } from '../lib/format.js'
+import { STEP_LABELS } from '../lib/constants.js'
 
 function MetaLine({ meta, phases }) {
   const bits = [meta.model]
@@ -23,29 +24,50 @@ function MetaLine({ meta, phases }) {
   )
 }
 
+function PhaseBlock({ phase }) {
+  const latency = phase.meta?.latency_ms
+  return (
+    <details className="phase">
+      <summary>
+        {STEP_LABELS[phase.name] || phase.name}
+        {latency != null ? ` · ${(latency / 1000).toFixed(1)} с` : ''}
+      </summary>
+      <div className="phase-text">{phase.content}</div>
+      {phase.request && (
+        <details className="request">
+          <summary>что ушло в модель</summary>
+          <pre className="out">{phase.request.content}</pre>
+        </details>
+      )}
+    </details>
+  )
+}
+
 const VERDICT_BADGES = {
   true: { cls: 'badge--ok', text: 'совпало с эталоном' },
   false: { cls: 'badge--no', text: 'не совпало' },
   null: { cls: 'badge--unk', text: 'ответ не распознан' },
 }
 
-export default function AgentCard({ agent, state, onRun, busy, builtIn }) {
+export default function AgentCard({ item, state, onRun, busy, builtIn }) {
   const s = state || { status: 'idle' }
   const phases = s.phases || []
   const mainPhase = phases[phases.length - 1]
+  const prevPhases = phases.slice(0, -1)
   const running = s.status === 'running'
   const text = running ? mainPhase?.content || '' : s.text
   const verdict = verdictFor(s, builtIn)
+  const sub = item.hint || item.instruction || 'пусто — просто задача'
 
   return (
-    <article id={`strat-${agent.id}`} className={`strat-card${running ? ' strat-card--running' : ''}`}>
+    <article id={`strat-${item.id}`} className={`strat-card${running ? ' strat-card--running' : ''}`}>
       <div className="strat-head">
         <div className="strat-head-text">
-          <h3 className="strat-title">{agent.name || 'без названия'}</h3>
-          <p className="strat-hint">{agent.instruction || 'пусто — просто задача'}</p>
+          <h3 className="strat-title">{item.name || 'без названия'}</h3>
+          <p className="strat-hint">{sub}</p>
         </div>
-        <span className={`strat-model${agent.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
-          {agent.model}
+        <span className={`strat-model${item.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
+          {item.model}
         </span>
       </div>
 
@@ -53,15 +75,20 @@ export default function AgentCard({ agent, state, onRun, busy, builtIn }) {
         {s.status === 'idle' && <p className="strat-empty">ещё не запускался</p>}
         {s.error && <div className="errtext">{s.error}</div>}
         {!s.error && s.status !== 'idle' && (
-          <div className="answer">
-            {text || (running ? (
-              <span className="runline">
-                <span className="dot" />модель думает…
-              </span>
-            ) : (
-              <span className="answer-empty">пустой ответ</span>
+          <>
+            {prevPhases.map(ph => (
+              <PhaseBlock key={ph.name} phase={ph} />
             ))}
-          </div>
+            <div className="answer">
+              {text || (running ? (
+                <span className="runline">
+                  <span className="dot" />модель думает…
+                </span>
+              ) : (
+                <span className="answer-empty">пустой ответ</span>
+              ))}
+            </div>
+          </>
         )}
         {s.stopped && <p className="stopnote">генерация остановлена вручную</p>}
         {s.meta && <MetaLine meta={s.meta} phases={phases} />}

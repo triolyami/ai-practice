@@ -1,8 +1,21 @@
 import { DEFAULT_TASK } from '../lib/constants.js'
 
-export default function TaskCard({ task, setTask, busy, onRun, onStop, onReset, hasRuns, agents, selected, onToggle }) {
+export default function TaskCard({ task, setTask, busy, onRun, onStop, onReset, hasRuns, universe, selected, onToggle }) {
   const custom = task.trim() !== DEFAULT_TASK.trim()
   const count = selected.length
+  const agents = universe.filter(u => u.kind === 'agent')
+  const pipes = universe.filter(u => u.kind === 'pipeline')
+  const chip = u => (
+    <button
+      key={u.id}
+      className={`chip-btn pick-chip${selected.includes(u.id) ? ' chip-btn--on' : ''}`}
+      onClick={() => onToggle(u.id)}
+      disabled={busy}
+      title={u.kind === 'pipeline' ? u.hint : u.instruction || 'пусто — просто задача'}
+    >
+      {u.name || 'без названия'}
+    </button>
+  )
   return (
     <section className="task-card">
       <div className="task-head">
@@ -21,17 +34,9 @@ export default function TaskCard({ task, setTask, busy, onRun, onStop, onReset, 
         </div>
       </div>
       <div className="pick">
-        {agents.map(a => (
-          <button
-            key={a.id}
-            className={`chip-btn pick-chip${selected.includes(a.id) ? ' chip-btn--on' : ''}`}
-            onClick={() => onToggle(a.id)}
-            disabled={busy}
-            title={a.instruction || 'пусто — просто задача'}
-          >
-            {a.name || 'без названия'}
-          </button>
-        ))}
+        {agents.map(chip)}
+        {agents.length > 0 && pipes.length > 0 && <div className="pick-div" />}
+        {pipes.map(chip)}
       </div>
       <div className="task-head">
         <span className="side-title">задача</span>

@@ -14,16 +14,16 @@ const VERDICT_CELL = {
   null: { cls: 'badge--unk', text: '?' },
 }
 
-export default function Compare({ runs, task, agents, selected }) {
-  const done = agents.filter(a => selected.includes(a.id) && runs[a.id]?.status === 'done')
+export default function Compare({ runs, task, universe, selected }) {
+  const done = universe.filter(u => selected.includes(u.id) && runs[u.id]?.status === 'done')
   if (done.length < 2) return null
 
   const builtIn = task.trim() === DEFAULT_TASK.trim()
-  const rows = done.map(a => {
-    const state = runs[a.id]
+  const rows = done.map(u => {
+    const state = runs[u.id]
     return {
-      id: a.id,
-      name: a.name || 'без названия',
+      id: u.id,
+      name: u.name || 'без названия',
       answer: extractAnswer(state.text),
       verdict: verdictFor(state, builtIn),
       meta: state.meta,

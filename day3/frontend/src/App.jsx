@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRuns } from './hooks/useRuns.js'
 import { useAgents } from './hooks/useAgents.js'
-import { DEFAULT_AGENTS, DEFAULT_TASK } from './lib/constants.js'
+import { usePipelines, resolveSteps } from './hooks/usePipelines.js'
+import { DEFAULT_AGENTS, DEFAULT_TASK, PIPELINES } from './lib/constants.js'
 import { clearState, loadState, saveState } from './lib/storage.js'
 import TopBar from './components/TopBar.jsx'
 import TaskCard from './components/TaskCard.jsx'
@@ -11,6 +12,7 @@ import Compare from './components/Compare.jsx'
 
 export default function App() {
   const { agents, setAgents } = useAgents()
+  const { pipelines: pipeOverrides, update: savePipelineOverrides, resetPipelines } = usePipelines()
   const [task, setTask] = useState(DEFAULT_TASK)
   const [frozenAt, setFrozenAt] = useState(null)
   const [selected, setSelected] = useState(() => agents.map(a => a.id))
@@ -18,8 +20,20 @@ export default function App() {
   const stopRef = useRef(false)
   const persistRef = useRef('')
 
+  const universe = [
+    ...agents.map(a => ({ ...a, kind: 'agent' })),
+    ...PIPELINES.map(p => ({
+      kind: 'pipeline',
+      id: p.id,
+      name: p.name,
+      model: p.model,
+      hint: p.hint,
+      instructions: resolveSteps(p.id, pipeOverrides),
+    })),
+  ]
+
   useEffect(() => {
-    const ids = new Set(agents.map(a => a.id))
+    const ids = new Set([...agents.map(a => a.id), ...PIPELINES.map(p => p.id)])
     const saved = loadState()
     if (saved) {
       setTask(saved.task)
@@ -83,16 +97,16 @@ export default function App() {
   const runMany = useCallback(
     async list => {
       stopRef.current = false
-      for (const agent of list) {
+      for (const item of list) {
         if (stopRef.current) break
-        await run(agent, task)
+        await run(item, task)
       }
     },
     [run, task],
   )
 
   const runSelected = useCallback(() => {
-    const list = agents.filter(a => selected.includes(a.id))
+    const list = universe.filter(u => selected.includes(u.id))
     if (!list.length) return
     requestAnimationFrame(() => {
       requestAnimationFrame(() => {
@@ -100,7 +114,7 @@ export default function App() {
       })
     })
     runMany(list)
-  }, [agents, runMany, selected])
+  }, [runMany, selected, universe])
 
   const stopAll = useCallback(() => {
     stopRef.current = true
@@ -142,13 +156,14 @@ export default function App() {
     [drop, setAgents],
   )
 
-  const resetAgents = useCallback(() => {
+  const resetAll = useCallback(() => {
     const fresh = DEFAULT_AGENTS.map(a => ({ ...a }))
     const ids = new Set(fresh.map(a => a.id))
     setAgents(fresh)
+    resetPipelines()
     setSelected(fresh.map(a => a.id))
     replaceAll(Object.fromEntries(Object.entries(runs).filter(([id]) => ids.has(id))))
-  }, [replaceAll, runs, setAgents])
+  }, [replaceAll, resetPipelines, runs, setAgents])
 
   const frozenStamp = frozenAt
     ? new Date(frozenAt).toLocaleString('ru-RU', {
@@ -160,7 +175,7 @@ export default function App() {
     : null
 
   const builtIn = task.trim() === DEFAULT_TASK.trim()
-  const visible = agents.filter(a => selected.includes(a.id))
+  const visible = universe.filter(u => selected.includes(u.id))
 
   return (
     <div className="app">
@@ -172,7 +187,9 @@ export default function App() {
           onCreate={createAgent}
           onSave={saveAgent}
           onDelete={deleteAgent}
-          onReset={resetAgents}
+          onReset={resetAll}
+          pipelineOverrides={pipeOverrides}
+          onSavePipeline={savePipelineOverrides}
         />
         <main className="page-scroll">
           <div className="col">
@@ -183,8 +200,8 @@ export default function App() {
                 Одна логическая задача решается через API агентами: у каждого —
                 своя инструкция и модель, запуск — один запрос. Четыре агента
                 встроены по заданию: прямой ответ, пошаговое решение, группа
-                экспертов и нативное рассуждение glm-5.3. Своих агентов можно
-                добавить в панели слева; отметьте нужных в карточке задачи и
+                экспертов и нативное рассуждение glm-5.3. Своих агентов и правки
+                пайплайнов — в панели слева; отметьте нужное в карточке задачи и
                 запустите, в конце страница сравнивает финальные ответы с эталоном.
               </p>
             </header>
@@ -203,7 +220,7 @@ export default function App() {
               setTask={setTask}
               busy={busy}
               hasRuns={hasRuns}
-              agents={agents}
+              universe={universe}
               selected={selected}
               onToggle={toggleSel}
               onRun={runSelected}
@@ -211,27 +228,28 @@ export default function App() {
               onReset={startOwn}
             />
 
-            <div className="group-label">выбранные агенты</div>
+            <div className="group-label">выбранные агенты и пайплайны</div>
             <div className="strat-grid">
-              {visible.map(a => (
+              {visible.map(u => (
                 <AgentCard
-                  key={a.id}
-                  agent={a}
-                  state={runs[a.id]}
-                  onRun={() => run(a, task)}
+                  key={u.id}
+                  item={u}
+                  state={runs[u.id]}
+                  onRun={() => run(u, task)}
                   busy={busy}
                   builtIn={builtIn}
                 />
               ))}
             </div>
 
-            <Compare runs={runs} task={task} agents={agents} selected={selected} />
+            <Compare runs={runs} task={task} universe={universe} selected={selected} />
 
             <footer className="page-foot">
-              агент — это один запрос: инструкция плюс задача; модели glm-4.6
-              (thinking выключен) и glm-5.3 (effort low); задача и эталон — в{' '}
-              <code>day3/puzzle.py</code>, проверка единственности —{' '}
-              <code>day3/verify.py</code>
+              агент — это один запрос: инструкция плюс задача; пайплайн —
+              несколько шагов подряд, шаги фиксированы, правятся только
+              инструкции; модели glm-4.6 (thinking выключен) и glm-5.3
+              (effort low); задача и эталон — в <code>day3/puzzle.py</code>,
+              проверка единственности — <code>day3/verify.py</code>
             </footer>
           </div>
         </main>

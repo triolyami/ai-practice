@@ -22,6 +22,66 @@ MAX_BODY = 60_000
 MAX_TASK = 4000
 STEP_DEADLINE_S = 240
 
+META_COMPOSE_DEFAULT = (
+    "Напиши промпт, по которому языковая модель решит задачу ниже максимально надёжно и без ошибок. "
+    "Промпт должен быть универсальной инструкцией: не включай в него саму задачу и её решение. "
+    "В ответ верни только текст промпта, без пояснений."
+)
+EXPERT_DEFAULTS = {
+    "analytik": "Ты — аналитик. Разбери условия задачи, выпиши все факты и связи между ними и реши задачу на основе этого разбора.",
+    "inzhener": "Ты — инженер. Реши задачу строго и систематично: обосновывай каждый вывод и дай чёткий финальный ответ.",
+    "kritik": "Ты — критик. Реши задачу, затем перепроверь своё решение на логические ошибки и дай окончательный ответ.",
+}
+SYNTHESIS_DEFAULT = (
+    "Три эксперта независимо решали одну и ту же задачу. Проверь их решения, найди ошибки, "
+    "если они есть, и приведи финальное решение группы."
+)
+
+
+def step_instruction(instructions: dict, key: str, default: str) -> str:
+    text = instructions.get(key, "")
+    if not isinstance(text, str):
+        return default
+    text = text.strip()
+    return text or default
+
+
+def meta_plan(task: str, instructions: dict) -> list:
+    compose_instr = step_instruction(instructions, "compose", META_COMPOSE_DEFAULT)
+
+    def compose_prompt(_outputs):
+        return f"{compose_instr}\n\nЗадача, для которой нужен промпт:\n{task}"
+
+    def solve_prompt(outputs):
+        return f"{outputs['compose']}\n\n{task}"
+
+    return [("compose", compose_prompt), ("solve", solve_prompt)]
+
+
+def experts_plan(task: str, instructions: dict) -> list:
+    plan = []
+    for key in ("analytik", "inzhener", "kritik"):
+        instr = step_instruction(instructions, key, EXPERT_DEFAULTS[key])
+        plan.append((key, lambda _outputs, text=instr: f"{text}\n\nЗадача:\n{task}"))
+    synth = step_instruction(instructions, "synthesis", SYNTHESIS_DEFAULT)
+
+    def synthesis_prompt(outputs):
+        return (
+            f"{synth}\n\nЗадача:\n{task}\n\n"
+            f"Решение аналитика:\n{outputs['analytik']}\n\n"
+            f"Решение инженера:\n{outputs['inzhener']}\n\n"
+            f"Решение критика:\n{outputs['kritik']}"
+        )
+
+    plan.append(("synthesis", synthesis_prompt))
+    return plan
+
+
+PIPELINES = {
+    "meta": meta_plan,
+    "experts_multi": experts_plan,
+}
+
 
 def compute_metrics(content: str) -> dict:
     text = content.strip()
@@ -109,6 +169,19 @@ class Day3Handler(BaseHTTPRequestHandler):
         if not isinstance(body, dict):
             self._json(400, {"error": "Тело запроса — не JSON-объект"})
             return
+        if "pipeline" in body:
+            task, pid, plan, model, err = parse_pipeline(body)
+            if err:
+                self._json(400, {"error": err})
+                return
+            if not self.solve_lock.acquire(blocking=False):
+                self._json(409, {"error": "Модель ещё отвечает на предыдущий запрос — подождите."})
+                return
+            try:
+                self._stream_pipeline(pid, task, plan, model)
+            finally:
+                self.solve_lock.release()
+            return
         task, content, model, err = parse_solve(body)
         if err:
             self._json(400, {"error": err})
@@ -150,6 +223,36 @@ class Day3Handler(BaseHTTPRequestHandler):
                 "steps": [phase],
             })
             print(f"   готово: {model}, слов {compute_metrics(phase['content'])['words']}", flush=True)
+        except ClientGone:
+            print("   клиент отключился — генерация прервана", flush=True)
+
+    def _stream_pipeline(self, pid: str, task: str, plan: list, model: str) -> None:
+        print(f"-> пайплайн {pid}, модель {model}, задача {len(task)} симв.", flush=True)
+        try:
+            self.send_response(200)
+            self.send_header("Content-Type", "application/x-ndjson; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.end_headers()
+        except (BrokenPipeError, ConnectionResetError, OSError):
+            return
+
+        try:
+            outputs = {}
+            phases = []
+            for name, build in plan:
+                phase = self._run_step(name, build(outputs), model)
+                if phase is None:
+                    return
+                outputs[name] = phase["content"]
+                phases.append(phase)
+            final = phases[-1]["content"]
+            self._line({
+                "event": "done",
+                "content": final,
+                "metrics": compute_metrics(final),
+                "steps": phases,
+            })
+            print(f"   готово: {pid}, шагов {len(phases)}, слов {compute_metrics(final)['words']}", flush=True)
         except ClientGone:
             print("   клиент отключился — генерация прервана", flush=True)
 
@@ -233,6 +336,28 @@ def parse_solve(body: dict) -> tuple:
     instruction = instruction.strip()
     content = f"{instruction}\n\nЗадача:\n{task}" if instruction else task
     return task, content, model, None
+
+
+def parse_pipeline(body: dict) -> tuple:
+    task = body.get("task", TASK)
+    if not isinstance(task, str) or not task.strip():
+        return None, None, None, None, "Поле task должно быть непустой строкой."
+    task = task.strip()
+    if len(task) > MAX_TASK:
+        return None, None, None, None, f"Задача длиннее {MAX_TASK} символов."
+    spec = body.get("pipeline")
+    if not isinstance(spec, dict):
+        return None, None, None, None, "Поле pipeline должно быть JSON-объектом."
+    pid = spec.get("id")
+    if pid not in PIPELINES:
+        return None, None, None, None, "Неизвестный пайплайн."
+    instructions = spec.get("instructions", {})
+    if not isinstance(instructions, dict):
+        return None, None, None, None, "Поле instructions должно быть JSON-объектом."
+    model = spec.get("model")
+    if model not in MODELS:
+        model = DEFAULT_MODEL
+    return task, pid, PIPELINES[pid](task, instructions), model, None
 
 
 def main():

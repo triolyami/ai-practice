@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { PIPELINES } from '../lib/constants.js'
 
 function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
   const [name, setName] = useState(agent.name)
@@ -63,8 +64,56 @@ function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
   )
 }
 
-export default function AgentSidebar({ agents, busy, onCreate, onSave, onDelete, onReset }) {
+function PipelineEditor({ pipeline, overrides, onSave, onCancel }) {
+  const [values, setValues] = useState(() => {
+    const out = {}
+    for (const st of pipeline.steps) out[st.name] = overrides[st.name] ?? st.default
+    return out
+  })
+  const save = () => {
+    const diff = {}
+    for (const st of pipeline.steps) {
+      if (values[st.name] !== st.default) diff[st.name] = values[st.name]
+    }
+    onSave(pipeline.id, diff)
+  }
+  return (
+    <div className="agent-editor">
+      {pipeline.steps.map(st => (
+        <label key={st.name} className="agent-field">
+          <span className="mini-label">{st.label}</span>
+          <textarea
+            className="input"
+            rows={4}
+            value={values[st.name]}
+            onChange={e => setValues(prev => ({ ...prev, [st.name]: e.target.value }))}
+          />
+        </label>
+      ))}
+      <div className="agent-editor-actions">
+        <button type="button" className="btn btn--primary btn--sm" onClick={save}>
+          сохранить
+        </button>
+        <button type="button" className="chip-btn" onClick={onCancel}>
+          отмена
+        </button>
+      </div>
+    </div>
+  )
+}
+
+export default function AgentSidebar({
+  agents,
+  busy,
+  onCreate,
+  onSave,
+  onDelete,
+  onReset,
+  pipelineOverrides,
+  onSavePipeline,
+}) {
   const [editingId, setEditingId] = useState(null)
+  const [editingPipe, setEditingPipe] = useState(null)
 
   const discardUnsaved = () => {
     const prev = agents.find(a => a.id === editingId)
@@ -72,6 +121,7 @@ export default function AgentSidebar({ agents, busy, onCreate, onSave, onDelete,
   }
   const add = () => {
     discardUnsaved()
+    setEditingPipe(null)
     const agent = { id: `a-${Date.now()}`, name: '', instruction: '', model: 'glm-4.6' }
     onCreate(agent)
     setEditingId(agent.id)
@@ -86,6 +136,7 @@ export default function AgentSidebar({ agents, busy, onCreate, onSave, onDelete,
       return
     }
     discardUnsaved()
+    setEditingPipe(null)
     setEditingId(agent.id)
   }
   const save = (id, draft) => {
@@ -96,9 +147,23 @@ export default function AgentSidebar({ agents, busy, onCreate, onSave, onDelete,
     onDelete(id)
     setEditingId(null)
   }
+  const togglePipe = id => {
+    if (editingPipe === id) {
+      setEditingPipe(null)
+      return
+    }
+    discardUnsaved()
+    setEditingId(null)
+    setEditingPipe(id)
+  }
+  const savePipe = (id, steps) => {
+    onSavePipeline(id, steps)
+    setEditingPipe(null)
+  }
   const reset = () => {
     onReset()
     setEditingId(null)
+    setEditingPipe(null)
   }
 
   return (
@@ -131,6 +196,31 @@ export default function AgentSidebar({ agents, busy, onCreate, onSave, onDelete,
                 onSave={save}
                 onDelete={remove}
                 onCancel={cancel}
+              />
+            )}
+          </li>
+        ))}
+      </ul>
+      <span className="side-title">пайплайны</span>
+      <ul className="agent-list">
+        {PIPELINES.map(p => (
+          <li key={p.id}>
+            <button
+              type="button"
+              className={`agent-row${editingPipe === p.id ? ' agent-row--active' : ''}`}
+              onClick={() => togglePipe(p.id)}
+              title={p.hint}
+            >
+              <span className="agent-name">{p.name}</span>
+              <span className="strat-model">{p.model}</span>
+            </button>
+            {editingPipe === p.id && (
+              <PipelineEditor
+                key={p.id}
+                pipeline={p}
+                overrides={pipelineOverrides[p.id] || {}}
+                onSave={savePipe}
+                onCancel={() => setEditingPipe(null)}
               />
             )}
           </li>

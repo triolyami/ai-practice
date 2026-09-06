@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 from config import complete
 from puzzle import GROUND_TRUTH, TASK
+from server import PIPELINES
 
 RESULTS_PATH = Path(__file__).parent / "results.json"
 
@@ -23,6 +24,11 @@ AGENTS = (
     {"id": "thinking", "name": "Нативное рассуждение", "instruction": "", "model": "glm-5.3"},
 )
 
+PIPELINES_RUN = (
+    {"id": "meta", "name": "Сначала промпт", "model": "glm-4.6"},
+    {"id": "experts_multi", "name": "Эксперты по очереди", "model": "glm-4.6"},
+)
+
 
 def compose(task: str, instruction: str) -> str:
     text = instruction.strip()
@@ -34,19 +40,17 @@ def compute_metrics(content: str) -> dict:
     return {"chars": len(text), "words": len(text.split())}
 
 
-def run_agent(task: str, agent: dict) -> dict:
-    content_text = compose(task, agent["instruction"])
+def run_step(model: str, content_text: str, name: str) -> dict:
     messages = [{"role": "user", "content": content_text}]
     started = time.perf_counter()
-    print(f"агент: {agent['id']} ({agent['model']}) ...", flush=True)
-    resp = complete(messages, model=agent["model"], temperature=0)
+    resp = complete(messages, model=model, temperature=0)
     content = resp.choices[0].message.content or ""
     usage = resp.usage
-    phase = {
-        "name": "solve",
+    return {
+        "name": name,
         "content": content,
         "meta": {
-            "model": agent["model"],
+            "model": model,
             "finish_reason": resp.choices[0].finish_reason,
             "prompt_tokens": usage.prompt_tokens if usage else None,
             "completion_tokens": usage.completion_tokens if usage else None,
@@ -54,19 +58,47 @@ def run_agent(task: str, agent: dict) -> dict:
         },
         "request": {"content": content_text, "params": {}},
     }
+
+
+def run_agent(task: str, agent: dict) -> dict:
+    content_text = compose(task, agent["instruction"])
+    print(f"агент: {agent['id']} ({agent['model']}) ...", flush=True)
+    phase = run_step(agent["model"], content_text, "solve")
     print(f"    готово: {phase['meta']['completion_tokens']} токенов, {phase['meta']['latency_ms']} мс", flush=True)
     return {
         "id": agent["id"],
         "title": agent["name"],
-        "content": content,
-        "metrics": compute_metrics(content),
+        "content": phase["content"],
+        "metrics": compute_metrics(phase["content"]),
         "phases": [phase],
+        "meta": phase["meta"],
+    }
+
+
+def run_pipeline(task: str, spec: dict) -> dict:
+    plan = PIPELINES[spec["id"]](task, {})
+    print(f"пайплайн: {spec['id']} ({spec['model']}) ...", flush=True)
+    outputs = {}
+    phases = []
+    for name, build in plan:
+        phase = run_step(spec["model"], build(outputs), name)
+        outputs[name] = phase["content"]
+        phases.append(phase)
+        print(f"    шаг {name}: {phase['meta']['completion_tokens']} токенов, {phase['meta']['latency_ms']} мс", flush=True)
+    final = phases[-1]["content"]
+    return {
+        "id": spec["id"],
+        "title": spec["name"],
+        "content": final,
+        "metrics": compute_metrics(final),
+        "phases": phases,
         "meta": {
-            "model": phase["meta"]["model"],
-            "finish_reason": phase["meta"]["finish_reason"],
-            "prompt_tokens": phase["meta"]["prompt_tokens"],
-            "completion_tokens": phase["meta"]["completion_tokens"],
-            "latency_ms": phase["meta"]["latency_ms"],
+            "model": spec["model"],
+            "finish_reason": phases[-1]["meta"]["finish_reason"],
+            "steps": len(phases),
+            "prompt_tokens": sum(p["meta"]["prompt_tokens"] or 0 for p in phases),
+            "completion_tokens": sum(p["meta"]["completion_tokens"] or 0 for p in phases),
+            "latency_ms": sum(p["meta"]["latency_ms"] for p in phases),
         },
     }
 
@@ -75,6 +107,8 @@ def main() -> None:
     runs = []
     for agent in AGENTS:
         runs.append(run_agent(TASK, agent))
+    for spec in PIPELINES_RUN:
+        runs.append(run_pipeline(TASK, spec))
     payload = {
         "meta": {
             "task": TASK,
