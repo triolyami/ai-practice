@@ -6,7 +6,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from config import complete, thinking_label
+from config import MODELS, complete, thinking_label
 from puzzle import GROUND_TRUTH, TASK
 from server import PIPELINES
 
@@ -52,7 +52,7 @@ def run_step(model: str, content_text: str, name: str, effort: str | None = None
         "meta": {
             "model": model,
             "finish_reason": resp.choices[0].finish_reason,
-            "effort": effort if model == "glm-5.3" else None,
+            "effort": effort if MODELS[model]["thinking"] == "effort" else None,
             "prompt_tokens": usage.prompt_tokens if usage else None,
             "completion_tokens": usage.completion_tokens if usage else None,
             "latency_ms": round((time.perf_counter() - started) * 1000),

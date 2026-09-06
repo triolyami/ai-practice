@@ -20,6 +20,12 @@ export default function App() {
   const { runs, replaceAll, run, abort, drop } = useRuns()
   const persistRef = useRef('')
   const [judge, setJudge] = useState(null)
+  const judgeGenRef = useRef(0)
+
+  const clearJudge = useCallback(() => {
+    judgeGenRef.current += 1
+    setJudge(null)
+  }, [])
 
   const universe = [
     ...agents.map(a => ({ ...a, kind: 'agent' })),
@@ -104,9 +110,11 @@ export default function App() {
 
   const runMany = useCallback(
     async list => {
+      if (!list.length) return
+      clearJudge()
       await Promise.all(list.map(item => run(item, task)))
     },
-    [run, task],
+    [clearJudge, run, task],
   )
 
   const runSelected = useCallback(() => {
@@ -126,11 +134,14 @@ export default function App() {
 
   const runJudgeAction = useCallback(async () => {
     if (judgeCandidates.length < 2) return
+    const gen = judgeGenRef.current
     setJudge({ status: 'running' })
     try {
       const result = await requestJudge({ task, answers: judgeCandidates })
+      if (judgeGenRef.current !== gen) return
       setJudge({ status: 'done', result, task, count: judgeCandidates.length })
     } catch (err) {
+      if (judgeGenRef.current !== gen) return
       setJudge({ status: 'error', error: err.message })
     }
   }, [judgeCandidates, task])
@@ -142,9 +153,9 @@ export default function App() {
     replaceAll({})
     setTask(DEFAULT_TASK)
     setFrozenAt(null)
-    setJudge(null)
+    clearJudge()
     setSelected(agents.map(a => a.id))
-  }, [abort, replaceAll, agents])
+  }, [abort, clearJudge, replaceAll, agents])
 
   const createAgent = useCallback(
     agent => {
@@ -248,7 +259,7 @@ export default function App() {
                   key={u.id}
                   item={u}
                   state={runs[u.id]}
-                  onRun={() => run(u, task)}
+                  onRun={() => runMany([u])}
                   busy={busy}
                   builtIn={builtIn}
                 />
@@ -269,9 +280,12 @@ export default function App() {
             <footer className="page-foot">
               агент — это один запрос: инструкция плюс задача; пайплайн —
               несколько шагов подряд, шаги фиксированы, правятся только
-              инструкции; модели glm-4.6 (thinking выключен) и glm-5.3 (у
-              неё выбирается effort: low, high или max); задача и эталон —
-              в <code>day3/puzzle.py</code>, проверка единственности —{' '}
+              инструкции; модели: glm-4.6 и deepseek-chat — без thinking,
+              glm-5.3, glm-5.3-flash и deepseek-reasoner — рассуждают сами,
+              у первых двух выбирается effort; для DeepSeek нужен свой ключ
+              DEEPSEEK_API_KEY в .env; новая настройка запуска сбрасывает
+              вердикт жюри от прошлых ответов; задача и эталон — в{' '}
+              <code>day3/puzzle.py</code>, проверка единственности —{' '}
               <code>day3/verify.py</code>
             </footer>
           </div>

@@ -1,6 +1,6 @@
 import { verdictFor } from '../lib/answer.js'
 import { plural } from '../lib/format.js'
-import { STEP_LABELS, modelLabel } from '../lib/constants.js'
+import { STEP_LABELS, modelLabel, modelWarn } from '../lib/constants.js'
 
 function MetaLine({ meta, phases }) {
   const bits = [modelLabel(meta.model)]
@@ -67,7 +67,7 @@ export default function AgentCard({ item, state, onRun, busy, builtIn }) {
           <h3 className="strat-title">{item.name || 'без названия'}</h3>
           <p className="strat-hint">{sub}</p>
         </div>
-        <span className={`strat-model${item.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
+        <span className={`strat-model${modelWarn(item.model) ? ' strat-model--warn' : ''}`}>
           {modelLabel(item.model, item.effort)}
         </span>
       </div>

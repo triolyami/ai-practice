@@ -12,6 +12,7 @@ from config import (
     EFFORTS,
     MODELS,
     complete,
+    missing_key,
     thinking_label,
 )
 from puzzle import SOLUTION, TASK
@@ -506,7 +507,7 @@ class Day3Handler(BaseHTTPRequestHandler):
                 "meta": {
                     "model": model,
                     "finish_reason": finish_reason,
-                    "effort": effort if model == "glm-5.3" else None,
+                    "effort": effort if MODELS[model]["thinking"] == "effort" else None,
                     "prompt_tokens": usage.prompt_tokens if usage else None,
                     "completion_tokens": usage.completion_tokens if usage else None,
                     "latency_ms": round((time.perf_counter() - started) * 1000),
@@ -537,6 +538,9 @@ def parse_solve(body: dict) -> tuple:
     model = agent.get("model")
     if model not in MODELS:
         model = DEFAULT_MODEL
+    key_err = missing_key(model)
+    if key_err:
+        return None, None, None, None, key_err
     effort = agent.get("effort")
     if effort not in EFFORTS:
         effort = DEFAULT_EFFORT
@@ -567,6 +571,9 @@ def parse_pipeline(body: dict) -> tuple:
     model = spec.get("model")
     if model not in MODELS:
         model = DEFAULT_MODEL
+    key_err = missing_key(model)
+    if key_err:
+        return None, None, None, None, key_err
     return task, pid, PIPELINES[pid](task, instructions), model, None
 
 

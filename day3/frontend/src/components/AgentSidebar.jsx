@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { EFFORTS, PIPELINES, modelLabel } from '../lib/constants.js'
+import { EFFORTS, MODELS, PIPELINES, modelEntry, modelLabel, modelWarn } from '../lib/constants.js'
 
 function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
   const [name, setName] = useState(agent.name)
@@ -31,19 +31,19 @@ function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
       <div className="agent-field">
         <span className="mini-label">модель</span>
         <div className="agent-models">
-          {['glm-4.6', 'glm-5.3'].map(m => (
+          {MODELS.map(m => (
             <button
-              key={m}
+              key={m.id}
               type="button"
-              className={`chip-btn${model === m ? ' chip-btn--on' : ''}`}
-              onClick={() => setModel(m)}
+              className={`chip-btn${model === m.id ? ' chip-btn--on' : ''}`}
+              onClick={() => setModel(m.id)}
             >
-              {modelLabel(m)}
+              {m.label}
             </button>
           ))}
         </div>
       </div>
-      {model === 'glm-5.3' && (
+      {modelEntry(model).thinking === 'effort' && (
         <div className="agent-field">
           <span className="mini-label">effort</span>
           <div className="agent-models">
@@ -202,7 +202,7 @@ export default function AgentSidebar({
               title={a.instruction || 'пусто — просто задача'}
             >
               <span className="agent-name">{a.name || 'без названия'}</span>
-              <span className={`strat-model${a.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
+              <span className={`strat-model${modelWarn(a.model) ? ' strat-model--warn' : ''}`}>
                 {modelLabel(a.model, a.effort)}
               </span>
             </button>

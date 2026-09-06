@@ -29,9 +29,27 @@ export const DEFAULT_AGENTS = [
 
 export const EFFORTS = ['low', 'high', 'max']
 
+export const MODELS = [
+  { id: 'glm-4.6', label: 'glm-4.6 (no reasoning)', thinking: 'off' },
+  { id: 'glm-5.3', label: 'glm-5.3', thinking: 'effort' },
+  { id: 'glm-5.3-flash', label: 'glm-5.3-flash', thinking: 'effort' },
+  { id: 'deepseek-chat', label: 'deepseek-chat (no reasoning)', thinking: 'off' },
+  { id: 'deepseek-reasoner', label: 'deepseek-reasoner', thinking: 'native' },
+]
+
+export const MODEL_IDS = MODELS.map(m => m.id)
+
+export function modelEntry(model) {
+  return MODELS.find(m => m.id === model) || { id: model, label: model, thinking: 'off' }
+}
+
 export function modelLabel(model, effort) {
-  if (model === 'glm-4.6') return 'glm-4.6 (no reasoning)'
-  return effort ? `${model} · effort ${effort}` : model
+  const entry = modelEntry(model)
+  return entry.thinking === 'effort' && effort ? `${entry.label} · effort ${effort}` : entry.label
+}
+
+export function modelWarn(model) {
+  return modelEntry(model).thinking !== 'off'
 }
 
 export const STEP_LABELS = {
