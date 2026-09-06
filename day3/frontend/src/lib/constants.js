@@ -26,6 +26,10 @@ export const DEFAULT_AGENTS = [
   { id: 'thinking', name: 'Нативное рассуждение', instruction: '', model: 'glm-5.3' },
 ]
 
+export function modelLabel(model) {
+  return model === 'glm-4.6' ? 'glm-4.6 (no reasoning)' : model
+}
+
 export const STEP_LABELS = {
   solve: 'решение',
   compose: 'промпт, который написала модель',

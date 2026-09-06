@@ -1,9 +1,9 @@
 import { verdictFor } from '../lib/answer.js'
 import { plural } from '../lib/format.js'
-import { STEP_LABELS } from '../lib/constants.js'
+import { STEP_LABELS, modelLabel } from '../lib/constants.js'
 
 function MetaLine({ meta, phases }) {
-  const bits = [meta.model]
+  const bits = [modelLabel(meta.model)]
   if (meta.steps > 1) bits.push(`${meta.steps} ${plural(meta.steps, ['шаг', 'шага', 'шагов'])}`)
   if (meta.finish_reason) bits.push(`finish=${meta.finish_reason}`)
   if (meta.completion_tokens != null) {
@@ -67,7 +67,7 @@ export default function AgentCard({ item, state, onRun, busy, builtIn }) {
           <p className="strat-hint">{sub}</p>
         </div>
         <span className={`strat-model${item.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
-          {item.model}
+          {modelLabel(item.model)}
         </span>
       </div>
 

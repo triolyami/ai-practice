@@ -194,8 +194,7 @@ export default function App() {
         <main className="page-scroll">
           <div className="col">
             <header className="hero">
-              <span className="pill">день 3 · разные способы рассуждения</span>
-              <h1>Четыре способа решить одну задачу</h1>
+              <h1>Реши одну задачу несколькими способами</h1>
               <p className="lead">
                 Одна логическая задача решается через API агентами: у каждого —
                 своя инструкция и модель, запуск — один запрос. Четыре агента

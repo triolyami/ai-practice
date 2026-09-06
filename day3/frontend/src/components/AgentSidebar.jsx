@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { PIPELINES } from '../lib/constants.js'
+import { PIPELINES, modelLabel } from '../lib/constants.js'
 
 function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
   const [name, setName] = useState(agent.name)
@@ -37,7 +37,7 @@ function AgentEditor({ agent, busy, onSave, onDelete, onCancel }) {
               className={`chip-btn${model === m ? ' chip-btn--on' : ''}`}
               onClick={() => setModel(m)}
             >
-              {m}
+              {modelLabel(m)}
             </button>
           ))}
         </div>
@@ -179,13 +179,13 @@ export default function AgentSidebar({
           <li key={a.id}>
             <button
               type="button"
-              className={`agent-row${editingId === a.id ? ' agent-row--active' : ''}`}
+              className={`agent-row agent-row--stack${editingId === a.id ? ' agent-row--active' : ''}`}
               onClick={() => toggle(a)}
               title={a.instruction || 'пусто — просто задача'}
             >
               <span className="agent-name">{a.name || 'без названия'}</span>
               <span className={`strat-model${a.model === 'glm-5.3' ? ' strat-model--warn' : ''}`}>
-                {a.model}
+                {modelLabel(a.model)}
               </span>
             </button>
             {editingId === a.id && (
@@ -207,12 +207,12 @@ export default function AgentSidebar({
           <li key={p.id}>
             <button
               type="button"
-              className={`agent-row${editingPipe === p.id ? ' agent-row--active' : ''}`}
+              className={`agent-row agent-row--stack${editingPipe === p.id ? ' agent-row--active' : ''}`}
               onClick={() => togglePipe(p.id)}
               title={p.hint}
             >
               <span className="agent-name">{p.name}</span>
-              <span className="strat-model">{p.model}</span>
+              <span className="strat-model">{modelLabel(p.model)}</span>
             </button>
             {editingPipe === p.id && (
               <PipelineEditor
