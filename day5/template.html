@@ -1,0 +1,526 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>День 5 — версии моделей: время, токены, деньги</title>
+<style>
+  :root {
+    --bg: #F7F6F3;
+    --surface: #FFFFFF;
+    --border: #EAEAEA;
+    --ink: #111111;
+    --muted: #787774;
+    --sans: 'SF Pro Display', 'Geist Sans', 'Helvetica Neue', 'Switzer', -apple-system, sans-serif;
+    --serif: 'Newsreader', 'Instrument Serif', 'Lyon Text', Georgia, 'Times New Roman', serif;
+    --mono: 'Geist Mono', 'SF Mono', 'JetBrains Mono', ui-monospace, 'Cascadia Mono', Consolas, monospace;
+    --red-bg: #FDEBEC;   --red-ink: #9F2F2D;
+    --blue-bg: #E1F3FE;  --blue-ink: #1F6C9F;
+    --green-bg: #EDF3EC; --green-ink: #346538;
+    --yellow-bg: #FBF3DB;--yellow-ink: #956400;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    background: var(--bg);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.6;
+    -webkit-font-smoothing: antialiased;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    background: radial-gradient(600px 380px at 78% 8%, rgba(31, 108, 159, 0.035), transparent 70%);
+  }
+  .wrap { max-width: 1024px; margin: 0 auto; padding: 0 24px; }
+
+  .topbar { border-bottom: 1px solid var(--border); background: var(--bg); position: sticky; top: 0; z-index: 10; }
+  .topbar-in { display: flex; align-items: center; justify-content: space-between; height: 56px; }
+  .brand { font-family: var(--mono); font-size: 12px; letter-spacing: 0.05em; text-transform: uppercase; color: var(--ink); text-decoration: none; }
+  .brand em { font-style: normal; color: var(--muted); }
+  .toplink { font-family: var(--mono); font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; background: var(--surface); }
+  .toplink:hover { color: var(--ink); }
+
+  .hero { padding: 104px 0 88px; }
+  .pill {
+    display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em;
+    text-transform: uppercase; border-radius: 9999px; padding: 5px 12px;
+    background: var(--blue-bg); color: var(--blue-ink);
+  }
+  h1 {
+    font-family: var(--serif); font-weight: 500; letter-spacing: -0.03em; line-height: 1.05;
+    font-size: clamp(40px, 6vw, 68px); margin: 24px 0 20px; max-width: 800px;
+  }
+  .lead { font-size: 18px; color: var(--muted); max-width: 660px; margin-bottom: 28px; }
+  .lead b { color: var(--ink); font-weight: 600; }
+  .meta-strip { font-family: var(--mono); font-size: 12px; letter-spacing: 0.04em; text-transform: uppercase; color: var(--muted); }
+  .meta-strip b { color: var(--ink); font-weight: 500; }
+
+  .section { padding: 56px 0; }
+  .sec-head { display: flex; align-items: baseline; gap: 20px; margin-bottom: 8px; }
+  .sec-num { font-family: var(--serif); font-style: italic; font-size: 52px; color: var(--ink); opacity: 0.18; line-height: 1; }
+  h2 { font-family: var(--serif); font-weight: 500; letter-spacing: -0.02em; font-size: 34px; line-height: 1.1; }
+  .prompt-quote {
+    display: inline-block; font-family: var(--mono); font-size: 14px;
+    background: var(--surface); border: 1px solid var(--border); border-radius: 8px;
+    padding: 12px 18px; margin: 4px 0 24px;
+  }
+
+  .tbl-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 20px; }
+  table { width: 100%; border-collapse: collapse; font-size: 14px; }
+  th, td { padding: 12px 13px; text-align: left; border-bottom: 1px solid var(--border); white-space: nowrap; vertical-align: top; }
+  th { font-family: var(--mono); font-size: 11px; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); font-weight: 500; }
+  tr:last-child td { border-bottom: none; }
+  td .big { font-weight: 600; font-size: 15px; }
+  td .sub { display: block; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 2px; }
+  .model-cell { display: flex; flex-direction: column; gap: 5px; min-width: 185px; white-space: normal; }
+  .model-id { font-family: var(--mono); font-size: 13.5px; font-weight: 600; }
+  .model-note { font-size: 12px; color: var(--muted); line-height: 1.45; }
+
+  .tag {
+    align-self: flex-start; font-family: var(--mono); font-size: 10px; letter-spacing: 0.08em;
+    text-transform: uppercase; border-radius: 9999px; padding: 3px 9px;
+  }
+  .tag--weak { background: var(--green-bg); color: var(--green-ink); }
+  .tag--medium { background: var(--blue-bg); color: var(--blue-ink); }
+  .tag--strong { background: var(--red-bg); color: var(--red-ink); }
+
+  .badge {
+    display: inline-block; font-family: var(--mono); font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
+    border-radius: 9999px; padding: 4px 10px; background: var(--bg); color: var(--ink);
+    border: 1px solid var(--border);
+  }
+  .badge--green { background: var(--green-bg); color: var(--green-ink); border-color: transparent; }
+  .badge--red { background: var(--red-bg); color: var(--red-ink); border-color: transparent; }
+  .badge--blue { background: var(--blue-bg); color: var(--blue-ink); border-color: transparent; }
+  .badge--yellow { background: var(--yellow-bg); color: var(--yellow-ink); border-color: transparent; }
+
+  details.ans { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 12px; overflow: hidden; }
+  details.ans summary { cursor: pointer; padding: 15px 20px; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; list-style: none; }
+  details.ans summary::-webkit-details-marker { display: none; }
+  details.ans summary:hover { background: #FAFAF8; }
+  details.ans[open] summary { border-bottom: 1px solid var(--border); }
+  .ans-name { font-family: var(--mono); font-size: 13.5px; font-weight: 600; }
+  .ans-arrow { margin-left: auto; font-family: var(--mono); font-size: 12px; color: var(--muted); }
+  .ans-body { padding: 20px; }
+  .judge-comment { font-size: 14px; color: var(--muted); font-style: italic; margin-bottom: 12px; }
+  .judge-comment b { color: var(--ink); font-style: normal; }
+  .ans-metrics { font-family: var(--mono); font-size: 11.5px; color: var(--muted); margin-bottom: 12px; letter-spacing: 0.03em; }
+
+  pre.out {
+    font-family: var(--mono); font-size: 12.5px; line-height: 1.55; white-space: pre-wrap;
+    word-break: break-word; background: #F9F9F8; border: 1px solid var(--border);
+    border-radius: 8px; padding: 16px 18px; max-height: 340px; overflow: auto; color: #2F3437;
+  }
+
+  .verdict {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--blue-ink);
+    border-radius: 12px; padding: 22px 26px; margin-top: 24px;
+  }
+  .verdict p { font-size: 15px; margin-top: 10px; }
+  .verdict .caveat { font-size: 12.5px; color: var(--muted); margin-top: 10px; }
+
+  .findings-section { border-top: 1px solid var(--border); }
+  .finding { display: grid; grid-template-columns: 56px 1fr; gap: 16px; padding: 22px 0; border-bottom: 1px solid var(--border); }
+  .finding-n { font-family: var(--mono); font-size: 13px; color: var(--muted); padding-top: 3px; }
+  .finding h3 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+  .finding p { font-size: 14.5px; color: var(--muted); }
+  .finding p code, .verdict code {
+    font-family: var(--mono); font-size: 0.9em; background: var(--bg);
+    border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px;
+  }
+
+  .callout {
+    background: var(--surface); border: 1px solid var(--border); border-left: 3px solid var(--red-ink);
+    border-radius: 12px; padding: 26px 28px; margin-top: 32px;
+  }
+  .callout + .callout { margin-top: 16px; }
+  .callout h3 { font-family: var(--serif); font-weight: 500; font-size: 22px; letter-spacing: -0.02em; margin: 10px 0 8px; }
+  .callout p { font-size: 14.5px; color: var(--muted); margin-bottom: 8px; }
+  .callout p:last-child { margin-bottom: 0; }
+  .callout code { font-family: var(--mono); font-size: 0.9em; background: var(--bg); border: 1px solid var(--border); border-radius: 4px; padding: 1px 5px; }
+
+  .links { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 14px; margin-top: 28px; }
+  .link-card {
+    background: var(--surface); border: 1px solid var(--border); border-radius: 12px;
+    padding: 18px 20px; text-decoration: none; color: var(--ink); display: flex; flex-direction: column; gap: 4px;
+  }
+  .link-card:hover { box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04); }
+  .link-card b { font-size: 14.5px; }
+  .link-card span { font-family: var(--mono); font-size: 11.5px; color: var(--muted); word-break: break-all; }
+
+  footer { border-top: 1px solid var(--border); padding: 48px 0 64px; margin-top: 56px; }
+  footer p { font-family: var(--mono); font-size: 12px; color: var(--muted); margin-bottom: 10px; }
+  footer a { color: var(--ink); }
+  kbd {
+    font-family: var(--mono); font-size: 12px; border: 1px solid var(--border);
+    border-radius: 4px; background: var(--surface); padding: 2px 7px;
+  }
+
+  .reveal { opacity: 0; transform: translateY(12px); transition: opacity 600ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms), transform 600ms cubic-bezier(0.16, 1, 0.3, 1) var(--d, 0ms); }
+  .reveal.in { opacity: 1; transform: none; }
+  @media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; transition: none; } }
+</style>
+</head>
+<body>
+
+<header class="topbar">
+  <div class="wrap topbar-in">
+    <a class="brand" href="#">AI Practice <em>/ день 5</em></a>
+    <a class="toplink" href="https://github.com/triolyami/ai-practice" target="_blank" rel="noopener">repo</a>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="hero">
+    <span class="pill">Домашнее задание · Версии моделей</span>
+    <h1>Один запрос — три модели</h1>
+    <p class="lead">
+      Один и тот же запрос ушёл на <b>слабую</b>, <b>среднюю</b> и <b>сильную</b> модель линейки
+      Z.ai — от бесплатной <b>glm-4.5-flash</b> до флагмана <b>glm-5.3</b>. Каждая пара
+      «запрос × модель» прогоняется трижды: замеряются время до первого токена, полная
+      латентность, токены и стоимость в долларах по опубликованным ценам. Качество оценивает
+      судья — <b>glm-5.3</b>, который не знает, какой ответ какой моделью написан.
+    </p>
+    <div class="meta-strip" id="meta-strip"></div>
+  </section>
+
+  <div id="requests"></div>
+
+  <section class="section findings-section">
+    <div class="sec-head"><span class="sec-num">∑</span><h2>Что мы увидели</h2></div>
+    <div class="findings">
+      <div class="finding">
+        <span class="finding-n">01</span>
+        <div>
+          <h3>Скорость</h3>
+          <p id="f-speed"></p>
+        </div>
+      </div>
+      <div class="finding">
+        <span class="finding-n">02</span>
+        <div>
+          <h3>Токены и цена</h3>
+          <p id="f-cost"></p>
+        </div>
+      </div>
+      <div class="finding">
+        <span class="finding-n">03</span>
+        <div>
+          <h3>Качество</h3>
+          <p id="f-quality"></p>
+        </div>
+      </div>
+      <div class="finding">
+        <span class="finding-n">04</span>
+        <div>
+          <h3>Итог</h3>
+          <p id="f-total"></p>
+        </div>
+      </div>
+    </div>
+
+    <aside class="callout reveal">
+      <span class="tag tag--weak" style="background: var(--yellow-bg); color: var(--yellow-ink);">методология</span>
+      <h3>Как мерили</h3>
+      <p>
+        Все прогоны: <code>temperature 0</code>, стриминг, <b>без</b> <code>max_tokens</code> — у
+        <code>glm-5.3</code> скрытые рассуждения съедают лимит раньше видимого текста (день 2).
+        У flash и 4.6 рассуждения отключены параметром <code>thinking</code>; у 5.3 отключить
+        нельзя — поставлен минимум <code>effort: low</code>, и это честная часть её ресурсоёмкости.
+        Стоимость считается по опубликованным ценам Z.ai за 1M токенов: вход × цена входа + выход × цена выхода.
+      </p>
+      <p>
+        Сюрприз замера: <code>glm-4.5-flash</code> по умолчанию <b>думает</b> — пробный звонок
+        «ответь одним словом: привет» без параметра вернул <b>161 токен</b> рассуждений, с
+        <code>thinking: disabled</code> — 3. Без отключения бесплатная модель была бы не самой быстрой.
+      </p>
+    </aside>
+
+    <aside class="callout reveal" style="border-left-color: var(--blue-ink);">
+      <span class="tag tag--medium">оговорка</span>
+      <h3>Судья — тоже GLM</h3>
+      <p>
+        Качество оценивал <code>glm-5.3</code>: ответы были обезличены (A/B/C, порядок
+        чередуется между запросами), но судья принадлежит тому же семейству, что и сильнейший
+        участник — возможное само-предпочтение. Оценки стоит читать как ориентир, а не приговор:
+        их можно поправить руками в <code>results.json</code> и пересобрать страницу
+        <code>--render-only</code>.
+      </p>
+    </aside>
+
+    <div class="links">
+      <a class="link-card" href="https://docs.z.ai/guides/overview/pricing" target="_blank" rel="noopener">
+        <b>Цены Z.ai</b><span>docs.z.ai/guides/overview/pricing</span>
+      </a>
+      <a class="link-card" href="https://docs.z.ai/" target="_blank" rel="noopener">
+        <b>Документация моделей</b><span>docs.z.ai</span>
+      </a>
+      <a class="link-card" href="https://huggingface.co/zai-org" target="_blank" rel="noopener">
+        <b>Открытые веса на HuggingFace</b><span>huggingface.co/zai-org</span>
+      </a>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <p>Воспроизвести: <kbd>cp .env.example .env</kbd> → вписать ключ → свой промпт в <kbd>day5/prompts.py</kbd> → <kbd>.venv/bin/python day5/experiment.py</kbd></p>
+    <p id="foot-prices"></p>
+    <p>Дизайн страницы — по протоколу <a href="https://github.com/Leonxlnx/taste-skill" target="_blank" rel="noopener">minimalist-ui / taste-skill</a> (MIT)</p>
+  </div>
+</footer>
+
+<script type="application/json" id="results-data">__RESULTS_JSON__</script>
+<script>
+const DATA = JSON.parse(document.getElementById('results-data').textContent);
+const MODELS = DATA.meta.models;
+
+function el(tag, className, text) {
+  const node = document.createElement(tag);
+  if (className) node.className = className;
+  if (text !== undefined) node.textContent = text;
+  return node;
+}
+
+function plural(n, forms) {
+  const m10 = n % 10, m100 = n % 100;
+  if (m10 === 1 && m100 !== 11) return forms[0];
+  if (m10 >= 2 && m10 <= 4 && (m100 < 10 || m100 >= 20)) return forms[1];
+  return forms[2];
+}
+
+function badge(text, tone) {
+  const b = el('span', 'badge' + (tone ? ' badge--' + tone : ''), text);
+  return b;
+}
+
+function tierTag(model) {
+  return el('span', 'tag tag--' + model.tier, model.tier_name);
+}
+
+function median(arr) {
+  const a = arr.filter(v => v !== null && v !== undefined).slice().sort((x, y) => x - y);
+  if (!a.length) return null;
+  const mid = Math.floor(a.length / 2);
+  return a.length % 2 ? a[mid] : (a[mid - 1] + a[mid]) / 2;
+}
+
+function fmtMs(ms) {
+  if (ms === null || ms === undefined) return '—';
+  return ms >= 1000 ? (ms / 1000).toFixed(2) + ' с' : Math.round(ms) + ' мс';
+}
+
+function fmtCost(cost, free) {
+  if (free) return 'бесплатно';
+  if (cost === null || cost === undefined) return '—';
+  return '$' + cost.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+}
+
+function fmtInt(n) {
+  return n === null || n === undefined ? '—' : Math.round(n).toLocaleString('ru-RU');
+}
+
+function runsFor(reqId, modelId) {
+  return DATA.runs.filter(r => r.request_id === reqId && r.model === modelId);
+}
+
+function modelStats(reqId, modelId) {
+  const runs = runsFor(reqId, modelId);
+  const lat = runs.map(r => r.latency_ms);
+  return {
+    runs,
+    latency: median(lat),
+    latencyMin: lat.length ? Math.min(...lat) : null,
+    latencyMax: lat.length ? Math.max(...lat) : null,
+    ttft: median(runs.map(r => r.ttft_ms)),
+    tokens: median(runs.map(r => r.completion_tokens)),
+    promptTokens: median(runs.map(r => r.prompt_tokens)),
+    costAvg: runs.length ? runs.reduce((s, r) => s + (r.cost_usd || 0), 0) / runs.length : null,
+    costSum: runs.reduce((s, r) => s + (r.cost_usd || 0), 0),
+    judged: runs.find(r => r.score !== null && r.score !== undefined) || null,
+  };
+}
+
+function scoreTone(score) {
+  return score >= 8 ? 'green' : score >= 5 ? 'yellow' : 'red';
+}
+
+document.getElementById('meta-strip').innerHTML =
+  MODELS.map(m => `<b>${m.id}</b>`).join(' · ') +
+  ` · ${DATA.meta.attempts} ${plural(DATA.meta.attempts, ['прогон', 'прогона', 'прогонов'])} на модель` +
+  (DATA.meta.judge_model ? ` · судья: <b>${DATA.meta.judge_model}</b> (вслепую)` : '') +
+  ` · ${DATA.meta.generated_at}`;
+document.getElementById('foot-prices').textContent = 'Цены: ' + DATA.meta.prices_source;
+
+const requestsBox = document.getElementById('requests');
+DATA.requests.forEach((req, reqIdx) => {
+  const section = el('section', 'section reveal');
+  if (reqIdx === 0) section.style.paddingTop = '0';
+  const head = el('div', 'sec-head');
+  head.appendChild(el('span', 'sec-num', '0' + (reqIdx + 1)));
+  head.appendChild(el('h2', null, req.title));
+  section.appendChild(head);
+  section.appendChild(el('div', 'prompt-quote', '«' + req.prompt + '»'));
+
+  const judgement = (DATA.judgements || []).find(j => j.request_id === req.id) || null;
+
+  const tblWrap = el('div', 'tbl-wrap');
+  const table = el('table');
+  const thead = el('thead');
+  const headRow = el('tr');
+  ['Модель', 'Время ответа', 'Первый токен', 'Токены', 'Стоимость', 'Оценка'].forEach(t => {
+    headRow.appendChild(el('th', null, t));
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+  const tbody = el('tbody');
+  MODELS.forEach(m => {
+    const st = modelStats(req.id, m.id);
+    const row = el('tr');
+    const modelCell = el('td');
+    const mc = el('div', 'model-cell');
+    mc.appendChild(tierTag(m));
+    mc.appendChild(el('span', 'model-id', m.id));
+    mc.appendChild(el('span', 'model-note', m.note));
+    modelCell.appendChild(mc);
+    row.appendChild(modelCell);
+
+    const latCell = el('td');
+    latCell.appendChild(el('span', 'big', fmtMs(st.latency)));
+    latCell.appendChild(el('span', 'sub', `мин ${fmtMs(st.latencyMin)} · макс ${fmtMs(st.latencyMax)}`));
+    row.appendChild(latCell);
+
+    const ttftCell = el('td');
+    ttftCell.appendChild(el('span', 'big', fmtMs(st.ttft)));
+    row.appendChild(ttftCell);
+
+    const tokCell = el('td');
+    tokCell.appendChild(el('span', 'big', fmtInt(st.tokens)));
+    tokCell.appendChild(el('span', 'sub', 'промпт ' + fmtInt(st.promptTokens)));
+    row.appendChild(tokCell);
+
+    const costCell = el('td');
+    costCell.appendChild(el('span', 'big', fmtCost(st.costAvg, m.free)));
+    costCell.appendChild(el('span', 'sub', 'все прогоны: ' + fmtCost(st.costSum, m.free)));
+    row.appendChild(costCell);
+
+    const scoreCell = el('td');
+    if (st.judged) {
+      scoreCell.appendChild(badge(st.judged.score + '/10', scoreTone(st.judged.score)));
+    } else {
+      scoreCell.appendChild(el('span', 'big', '—'));
+    }
+    row.appendChild(scoreCell);
+    tbody.appendChild(row);
+  });
+  table.appendChild(tbody);
+  tblWrap.appendChild(table);
+  section.appendChild(tblWrap);
+
+  MODELS.forEach(m => {
+    const st = modelStats(req.id, m.id);
+    const shown = st.judged || st.runs[0];
+    if (!shown) return;
+    const details = el('details', 'ans');
+    const summary = el('summary');
+    summary.appendChild(el('span', 'ans-name', m.id));
+    if (st.judged) summary.appendChild(badge(st.judged.score + '/10', scoreTone(st.judged.score)));
+    if (judgement && judgement.best === m.id) summary.appendChild(badge('лучший по версии судьи', 'green'));
+    summary.appendChild(el('span', 'ans-arrow', 'развернуть'));
+    details.appendChild(summary);
+    const body = el('div', 'ans-body');
+    if (st.judged && st.judged.comment) {
+      const jc = el('p', 'judge-comment');
+      const b = el('b', null, 'Судья: ');
+      jc.appendChild(b);
+      jc.appendChild(document.createTextNode(st.judged.comment));
+      body.appendChild(jc);
+    }
+    body.appendChild(el('p', 'ans-metrics',
+      `прогон #${shown.attempt} · ${fmtMs(shown.latency_ms)} · первый токен ${fmtMs(shown.ttft_ms)} · ` +
+      `${fmtInt(shown.completion_tokens)} токенов · ${fmtCost(shown.cost_usd, m.free)} · finish: ${shown.finish_reason}`));
+    body.appendChild(Object.assign(el('pre', 'out'), { textContent: shown.content }));
+    details.appendChild(body);
+    section.appendChild(details);
+  });
+
+  if (judgement) {
+    const verdict = el('aside', 'verdict reveal');
+    verdict.appendChild(el('span', 'tag tag--medium', 'вердикт судьи'));
+    const p = el('p');
+    const best = MODELS.find(m => m.id === judgement.best);
+    p.appendChild(el('b', null, best ? `${best.tier_name} (${judgement.best})` : judgement.best));
+    p.appendChild(document.createTextNode(' — '));
+    p.appendChild(document.createTextNode(judgement.verdict));
+    verdict.appendChild(p);
+    verdict.appendChild(el('p', 'caveat',
+      'Оценивал glm-5.3 вслепую (A/B/C) — но это модель из того же семейства, что и сильнейший участник.'));
+    section.appendChild(verdict);
+  }
+
+  requestsBox.appendChild(section);
+});
+
+(function fillFindings() {
+  const all = DATA.runs;
+  if (!all.length) return;
+  const stat = id => {
+    const lats = all.filter(r => r.model === id).map(r => r.latency_ms);
+    return { latency: median(lats), tokens: median(all.filter(r => r.model === id).map(r => r.completion_tokens)),
+             costSum: all.filter(r => r.model === id).reduce((s, r) => s + (r.cost_usd || 0), 0) };
+  };
+  const weak = MODELS[0], strong = MODELS[MODELS.length - 1];
+  const sw = stat(weak.id), ss = stat(strong.id);
+  if (sw.latency && ss.latency) {
+    const ratio = ss.latency / sw.latency;
+    const times = ratio >= 1 ? ratio : 1 / ratio;
+    document.getElementById('f-speed').textContent =
+      `Медианная латентность: ${weak.id} — ${fmtMs(sw.latency)}, ${strong.id} — ${fmtMs(ss.latency)}. ` +
+      `Сильная модель отвечает в ${times.toFixed(1)} ${plural(Math.round(times), ['раз', 'раза', 'раз'])} ` +
+      `${ratio >= 1 ? 'дольше' : 'быстрее'} — и это при effort low, минимальном уровне рассуждений.`;
+  }
+  const mid = MODELS[1], sm = stat(mid.id);
+  const priceRatio = (strong.price_out / mid.price_out).toFixed(1);
+  document.getElementById('f-cost').textContent =
+    `Токены на один ответ сопоставимы по порядку (медианы: ${fmtInt(sw.tokens)} / ${fmtInt(sm.tokens)} / ${fmtInt(ss.tokens)}), ` +
+    `но выход strong-модели стоит в ${priceRatio} ${plural(Math.round(priceRatio), ['раз', 'раза', 'раз'])} дороже средней — ` +
+    `плюс в её счётчик попадают скрытые рассуждения. Весь эксперимент обошёлся примерно в ` +
+    `$${(sw.costSum + sm.costSum + ss.costSum).toFixed(4)}: ${weak.id} — $0, ${mid.id} — $${sm.costSum.toFixed(4)}, ${strong.id} — $${ss.costSum.toFixed(4)}.`;
+  const js = DATA.judgements || [];
+  const wins = {};
+  js.forEach(j => { wins[j.best] = (wins[j.best] || 0) + 1; });
+  if (js.length) {
+    const winText = MODELS.map(m => wins[m.id] ? `${m.id} (${wins[m.id]} из ${js.length})` : null).filter(Boolean).join(', ');
+    document.getElementById('f-quality').textContent =
+      `Слепое судейство glm-5.3 по ${js.length} ${plural(js.length, ['запросу', 'запросам', 'запросам'])}: лучшие ответы — ${winText}. ` +
+      `Подробности и комментарии — в свёрнутых ответах каждого запроса.`;
+    const bestOverall = MODELS.reduce((a, b) => (wins[b.id] || 0) > (wins[a.id] || 0) ? b : a, MODELS[0]);
+    document.getElementById('f-total').textContent =
+      `Для простых запросов разница между уровнями часто меньше, чем разница в цене: если лучшим признали ` +
+      `${bestOverall.id}, доплата за флагман оправдана не всегда. Проверьте на своём промпте — правится в day5/prompts.py.`;
+  } else {
+    document.getElementById('f-quality').textContent = 'Судейство отключено (--no-judge) — оценки не выставлялись.';
+    document.getElementById('f-total').textContent = 'Сравните ответы вручную и проверьте на своём промпте — правится в day5/prompts.py.';
+  }
+})();
+
+const io = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('in');
+      io.unobserve(e.target);
+    }
+  });
+}, { threshold: 0.08 });
+document.querySelectorAll('.reveal').forEach((elm, i) => {
+  elm.style.setProperty('--d', `${(i % 4) * 80}ms`);
+  io.observe(elm);
+});
+</script>
+</body>
+</html>

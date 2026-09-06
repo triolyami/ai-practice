@@ -8,6 +8,7 @@ from config import MODELS, complete
 
 LAB_DIR = Path(__file__).parent
 DAY2_INDEX = LAB_DIR.parent / "day2" / "index.html"
+DAY5_INDEX = LAB_DIR.parent / "day5" / "index.html"
 DIST_DIR = LAB_DIR / "frontend" / "dist"
 ASSET_TYPES = {
     ".js": "text/javascript; charset=utf-8",
@@ -234,6 +235,8 @@ class LabHandler(BaseHTTPRequestHandler):
             self._dist_index()
         elif path == "/day2":
             self._file(DAY2_INDEX, "text/html; charset=utf-8")
+        elif path == "/day5":
+            self._file(DAY5_INDEX, "text/html; charset=utf-8")
         elif path.startswith("/assets/"):
             self._asset(path)
         elif path == "/favicon.ico":
