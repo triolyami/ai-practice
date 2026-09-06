@@ -1,4 +1,4 @@
-export default function TopBar({ onNewChat, hasChat }) {
+export default function TopBar() {
   return (
     <header className="topbar">
       <div className="topbar-in">
@@ -6,14 +6,6 @@ export default function TopBar({ onNewChat, hasChat }) {
           AI Practice <em>/ чат-лаборатория</em>
         </a>
         <div className="toplinks">
-          <button
-            type="button"
-            className="toplink toplink--btn"
-            onClick={onNewChat}
-            disabled={!hasChat}
-          >
-            новый чат
-          </button>
           <a className="toplink" href="/day2">выводы</a>
           <a
             className="toplink"

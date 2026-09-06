@@ -38,9 +38,6 @@ body::before {
 .toplinks { display: flex; gap: 8px; }
 .toplink { font-family: var(--mono); font-size: 12px; color: var(--muted); text-decoration: none; border: 1px solid var(--border); border-radius: 6px; padding: 6px 12px; background: var(--surface); }
 .toplink:hover { color: var(--ink); }
-.toplink--btn { cursor: pointer; font-family: var(--mono); font-size: 12px; }
-.toplink--btn:disabled { opacity: 0.4; cursor: default; }
-.toplink--btn:disabled:hover { color: var(--muted); }
 
 .layout { flex: 1; display: flex; min-height: 0; }
 .sidebar {
@@ -54,6 +51,38 @@ body::before {
 }
 .side-note { display: block; font-family: var(--mono); font-size: 11px; color: var(--muted); margin-top: 4px; }
 .main { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+
+.chatlist { border-bottom: 1px solid var(--border); padding-bottom: 16px; margin-bottom: 16px; }
+.chatlist-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+.chatlist-new {
+  font-family: var(--mono); font-size: 11px; color: var(--ink); cursor: pointer;
+  background: var(--surface); border: 1px solid var(--border); border-radius: 9999px; padding: 4px 10px;
+  transition: border-color 150ms ease;
+}
+.chatlist-new:hover { border-color: #B9B7B2; }
+.chatlist-empty { font-family: var(--mono); font-size: 11px; color: var(--muted); }
+.chatlist-items {
+  list-style: none; display: flex; flex-direction: column; gap: 2px;
+  max-height: 190px; overflow-y: auto;
+}
+.chatlist-items li { position: relative; display: flex; }
+.chatlist-item {
+  flex: 1; min-width: 0; display: flex; align-items: baseline; justify-content: space-between; gap: 8px;
+  text-align: left; background: none; border: none; border-radius: 8px; cursor: pointer;
+  padding: 7px 26px 7px 10px;
+}
+.chatlist-item:hover { background: var(--surface); }
+.chatlist-item.active { background: var(--surface); box-shadow: inset 0 0 0 1px var(--border); }
+.chatlist-title { font-size: 13px; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chatlist-date { font-family: var(--mono); font-size: 10px; color: var(--muted); flex: none; }
+.chatlist-del {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  border: none; background: none; color: var(--muted); font-size: 14px; line-height: 1;
+  cursor: pointer; padding: 3px 7px; border-radius: 6px; opacity: 0;
+  transition: opacity 120ms ease;
+}
+.chatlist-items li:hover .chatlist-del { opacity: 1; }
+.chatlist-del:hover { color: var(--red-ink); background: var(--red-bg); }
 
 .chat-scroll { flex: 1; overflow-y: auto; min-height: 0; }
 .chat-col { max-width: 828px; margin: 0 auto; padding: 36px 24px 8px; display: flex; flex-direction: column; gap: 30px; }
