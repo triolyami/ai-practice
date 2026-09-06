@@ -33,8 +33,8 @@ export const MODELS = [
   { id: 'glm-4.6', label: 'glm-4.6 (no reasoning)', thinking: 'off' },
   { id: 'glm-5.3', label: 'glm-5.3', thinking: 'effort' },
   { id: 'glm-5.3-flash', label: 'glm-5.3-flash', thinking: 'effort' },
-  { id: 'deepseek-chat', label: 'deepseek-chat (no reasoning)', thinking: 'off' },
-  { id: 'deepseek-reasoner', label: 'deepseek-reasoner', thinking: 'native' },
+  { id: 'deepseek-v4-flash', label: 'deepseek-v4-flash', thinking: 'native' },
+  { id: 'deepseek-v4-pro', label: 'deepseek-v4-pro', thinking: 'native' },
 ]
 
 export const MODEL_IDS = MODELS.map(m => m.id)

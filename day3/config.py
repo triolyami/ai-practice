@@ -65,15 +65,15 @@ MODELS = {
         "thinking": "effort",
         "note": "быстрая и дешёвая, тоже всегда думает — API отвергает отключение",
     },
-    "deepseek-chat": {
-        "provider": "deepseek",
-        "thinking": "off",
-        "note": "DeepSeek V3, без рассуждений",
-    },
-    "deepseek-reasoner": {
+    "deepseek-v4-flash": {
         "provider": "deepseek",
         "thinking": "native",
-        "note": "рассуждает сам, рассуждение приходит отдельным полем",
+        "note": "быстрая, рассуждает сам — рассуждение приходит отдельным полем",
+    },
+    "deepseek-v4-pro": {
+        "provider": "deepseek",
+        "thinking": "native",
+        "note": "старшая, рассуждает сам — рассуждение приходит отдельным полем",
     },
 }
 EFFORTS = ("low", "high", "max")

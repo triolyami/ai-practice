@@ -292,9 +292,10 @@ export default function App() {
             <footer className="page-foot">
               агент — это один запрос: инструкция плюс задача; пайплайн —
               несколько шагов подряд, шаги фиксированы, правятся только
-              инструкции; модели: glm-4.6 и deepseek-chat — без thinking,
-              glm-5.3, glm-5.3-flash и deepseek-reasoner — рассуждают сами,
-              у первых двух выбирается effort; для DeepSeek нужен свой ключ
+              инструкции; модели: glm-4.6 — без thinking,
+              glm-5.3, glm-5.3-flash, deepseek-v4-flash и
+              deepseek-v4-pro — рассуждают сами,
+              у glm-моделей выбирается effort; для DeepSeek нужен свой ключ
               DEEPSEEK_API_KEY в .env; новая настройка запуска сбрасывает
               вердикт жюри от прошлых ответов; задача и эталон — в{' '}
               <code>day3/puzzle.py</code>, проверка единственности —{' '}

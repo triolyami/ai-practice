@@ -45,13 +45,14 @@
 
 У каждого агента выбирается effort — low, high или max; он действует
 на моделях, которые всегда думают сами: `glm-5.3` и `glm-5.3-flash`
-(у них API отвергает отключение thinking). У `glm-4.6` и `deepseek-chat`
-thinking нет, поэтому поле effort там скрыто. `deepseek-reasoner`
-рассуждает сам, без настройки усилия. По умолчанию — low.
+(у них API отвергает отключение thinking). У `glm-4.6` thinking нет,
+поэтому поле effort там скрыто. Обе модели DeepSeek — `deepseek-v4-flash`
+и `deepseek-v4-pro` — тоже рассуждают сами, без настройки усилия.
+По умолчанию — low.
 
 Полный список моделей: `glm-4.6` (no reasoning), `glm-5.3`,
-`glm-5.3-flash` (Z.ai, общий ключ), `deepseek-chat` (no reasoning) и
-`deepseek-reasoner` (DeepSeek). Для DeepSeek впишите свой ключ в файл
+`glm-5.3-flash` (Z.ai, общий ключ), `deepseek-v4-flash` и
+`deepseek-v4-pro` (DeepSeek). Для DeepSeek впишите свой ключ в файл
 `.env` в корне репозитория — строкой `DEEPSEEK_API_KEY=sk-...` рядом с
 `GLM_API_KEY` (шаблон — в `.env.example`) — и перезапустите сервер; без
 ключа выбор такой модели вернёт понятную ошибку, остальные работают.
