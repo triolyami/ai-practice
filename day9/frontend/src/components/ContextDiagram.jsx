@@ -12,13 +12,14 @@ function barParts(source) {
   return SEGMENTS.map(s => ({ ...s, value: t[s.key] ?? 0 }))
 }
 
-function StackedBar({ parts, max, height }) {
+function StackedBar({ parts, fill, height }) {
+  const sum = parts.reduce((s, p) => s + p.value, 0)
   return (
     <span className="ctx-bar" style={{ height }}>
-      {parts.map(p => p.value > 0 && (
+      {sum > 0 && parts.map(p => p.value > 0 && (
         <span
           key={p.key}
-          style={{ width: `${Math.max((p.value / max) * 100, 0.8)}%`, background: p.color }}
+          style={{ width: `${Math.max((p.value / sum) * fill, 0.8)}%`, background: p.color }}
           title={`${p.label}: ≈${fmtTokens(p.value)} токенов (оценка)`}
         />
       ))}
@@ -60,7 +61,7 @@ export default function ContextDiagram({ preview, metas }) {
             <span>следующий запрос · {preview.mode_label}</span>
             <span className="ctx-next-total">≈{fmtTokens(preview.total)}</span>
           </div>
-          <StackedBar parts={nextParts} max={max} height={16} />
+          <StackedBar parts={nextParts} fill={(preview.total / max) * 100} height={16} />
           <span className="ctx-next-sub">
             сжато {preview.summarized} · как есть {preview.verbatim}
             {' '}· окно {preview.recent_keep} · сжатие каждые {preview.summary_every}
@@ -75,7 +76,7 @@ export default function ContextDiagram({ preview, metas }) {
           {[...shown].reverse().map(t => (
             <div key={t.i} className="ctx-row" data-mode={t.mode}>
               <span className="ctx-turn" title={MODE_SHORT[t.mode] || t.mode}>{t.i + 1}</span>
-              <StackedBar parts={t.parts} max={max} height={10} />
+              <StackedBar parts={t.parts} fill={(t.total / max) * 100} height={10} />
               <span
                 className="ctx-total"
                 title={t.actual
