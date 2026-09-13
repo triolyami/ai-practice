@@ -61,6 +61,10 @@ export default function App() {
         context_preview: ev.meta.context_preview,
       }))
     } else if (ev.event === 'summary') {
+      setNotice(
+        `История сжата: ${ev.compressed_messages} старых сообщений заменены сводкой ` +
+        '— контекст следующего запроса стал меньше, это работа сжатия, а не ошибка.',
+      )
       setAgentInfo(prev => ({
         ...(prev || {}),
         summaries: ev.summaries,

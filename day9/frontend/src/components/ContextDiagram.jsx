@@ -80,7 +80,7 @@ export default function ContextDiagram({ preview, metas }) {
               <span
                 className="ctx-total"
                 title={t.actual
-                  ? 'размер диалога после этого хода: промпт + ответ (факт API)'
+                  ? 'размер диалога после этого хода: промпт + текст ответа без скрытых рассуждений (факт API)'
                   : 'оценка: ход сделан до того, как счётчики стали считать по факту'}
               >
                 {t.actual ? '' : '≈'}{fmtTokens(t.total)}

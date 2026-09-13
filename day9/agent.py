@@ -3,7 +3,7 @@ from collections.abc import Iterator
 
 from compressor import compress, render_chunks_message, render_rolling_message
 from config import DEFAULT_MODEL, MODELS, complete
-from tokens import breakdown, context_used_pct
+from tokens import breakdown, context_used_pct, estimate_text
 
 DEFAULT_NAME = "Ассистент"
 DEFAULT_SYSTEM_PROMPT = (
@@ -133,6 +133,7 @@ class Agent:
             finish_reason,
             usage,
             round((time.perf_counter() - started) * 1000),
+            answer_est=estimate_text(reply),
         )
         self.history[-1]["meta"] = meta
         self.token_log.append({
@@ -384,17 +385,32 @@ class Agent:
         finish_reason: str | None,
         usage,
         latency_ms: int,
+        answer_est: int = 0,
     ) -> dict:
         spec = MODELS[self.model]
         prompt_tokens = usage.prompt_tokens if usage else None
         completion_tokens = usage.completion_tokens if usage else None
+        # у thinking-моделей completion включает скрытые рассуждения, которые
+        # не возвращаются в следующем запросе — в контексте остаётся только текст
+        reasoning_tokens = None
+        details = getattr(usage, "completion_tokens_details", None) if usage else None
+        if details is not None:
+            raw = getattr(details, "reasoning_tokens", None)
+            if isinstance(raw, (int, float)) and raw >= 0:
+                reasoning_tokens = int(raw)
+        answer_tokens = None
+        if completion_tokens is not None:
+            if reasoning_tokens:
+                answer_tokens = max(0, completion_tokens - reasoning_tokens)
+            else:
+                answer_tokens = min(answer_est, completion_tokens)
         est_error_pct = None
         if prompt_tokens:
             est_error_pct = round((est["total"] - prompt_tokens) / prompt_tokens * 100, 1)
-        # размер диалога после хода: промпт + ответ — столько займёт следующий запрос
+        # размер диалога после хода: промпт + текст ответа — столько займёт следующий запрос
         with_answer = None
         if prompt_tokens is not None:
-            with_answer = prompt_tokens + (completion_tokens or 0)
+            with_answer = prompt_tokens + (answer_tokens if answer_tokens is not None else 0)
         used = with_answer if with_answer is not None else est["total"]
         cost_usd = None
         if prompt_tokens is not None and spec.get("price_in") is not None:
@@ -427,6 +443,7 @@ class Agent:
                 "request": est["request"],
                 "total_est": est["total"],
                 "total_actual": prompt_tokens,
+                "answer_tokens": answer_tokens,
                 "total_with_answer": with_answer,
                 "est_error_pct": est_error_pct,
                 "context_limit": limit,

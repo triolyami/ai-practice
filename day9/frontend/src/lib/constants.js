@@ -1,4 +1,4 @@
-export const COUNTER_BUILD = '2026-09-14.3'
+export const COUNTER_BUILD = '2026-09-14.4'
 
 export const MODELS = {  'deepseek-v4-flash': {
     note: 'быстрая, рассуждает сама — текущий выбор по умолчанию',
