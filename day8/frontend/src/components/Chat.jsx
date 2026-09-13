@@ -15,14 +15,7 @@ function MetaLine({ meta }) {
   if (meta.prompt_tokens != null) {
     bits.push(`промпт ${fmtTokens(meta.prompt_tokens)}`)
     bits.push(`ответ ${fmtTokens(meta.completion_tokens)}`)
-  } else if (t.total_est != null) {
-    bits.push(`≈${fmtTokens(t.total_est)} токенов (оценка)`)
   }
-  if (t.est_error_pct != null) {
-    bits.push(`ошибка оценки ${t.est_error_pct > 0 ? '+' : ''}${t.est_error_pct}%`)
-  }
-  if (t.history != null) bits.push(`история ≈${fmtTokens(t.history)}`)
-  if (t.request != null) bits.push(`запрос ≈${fmtTokens(t.request)}`)
   if (t.context_used_pct != null) bits.push(`контекст ${t.context_used_pct}%`)
   if (meta.cost_usd != null) bits.push(fmtMoney(meta.cost_usd))
   if (meta.turns != null) {
@@ -82,11 +75,13 @@ export default function Chat({ messages, chat, input, setInput, notice }) {
             <span className="pill">день 8 · токены</span>
             <h1>Чат с агентом и счётчиком токенов</h1>
             <p className="lead">
-              Тот же агент, что и в дне 6, но теперь он считает токены: панель над чатом
-              показывает оценку контекста до отправки, точные числа от API после ответа,
-              накопленную стоимость и рост промпта от хода к ходу. Если диалог не влезает
-              в контекст модели — агент покажет ошибку или, в режиме «обрезать историю»,
-              забудет самые старые реплики и продолжит разговор.
+              Тот же агент, что и в дне 6, но теперь он считает токены — и только
+              по точным числам от API: панель над чатом показывает занятость
+              контекста последним запросом, накопительные токены и стоимость,
+              рост промпта от хода к ходу. Если диалог не влезает в контекст,
+              модель сама отклонит запрос — вы увидите её ошибку; в режиме
+              «обрезать историю» агент забудет самые старые реплики и повторит
+              запрос автоматически.
             </p>
             <div className="examples">
               {EXAMPLES.map(ex => (

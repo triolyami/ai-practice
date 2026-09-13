@@ -8,11 +8,10 @@ function level(pct) {
 
 export default function TokenPanel({ metas, contextLimit, model }) {
   const last = metas.length ? metas[metas.length - 1] : null
-  const t = last?.tokens
-  const used = t ? t.total_est : 0
-  const pct = t ? t.context_used_pct : 0
+  const used = last?.prompt_tokens ?? 0
+  const pct = last?.tokens?.context_used_pct ?? 0
   const totals = last?.totals ?? { prompt_tokens: 0, completion_tokens: 0, cost_usd: 0 }
-  const bars = metas.map(m => m.prompt_tokens ?? m.tokens.total_est)
+  const bars = metas.map(m => m.prompt_tokens ?? 0)
   const max = Math.max(...bars, 1)
   const limit = contextLimit ?? MODELS[model]?.context_limit ?? null
 

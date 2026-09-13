@@ -85,7 +85,6 @@ MODELS = {
     },
 }
 DEFAULT_MODEL = "deepseek-v4-flash"
-RESPONSE_HEADROOM = 8192
 
 
 def thinking_config(model: str) -> dict:
