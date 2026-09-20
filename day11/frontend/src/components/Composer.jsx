@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import SettingsPanel from './SettingsPanel.jsx'
-import { STRATEGY_MODES } from '../lib/constants.js'
+import { LAYER_ORDER, LAYER_SHORT } from '../lib/constants.js'
 import { loadSettingsOpen, saveSettingsOpen } from '../lib/storage.js'
 
 const FILLER =
@@ -18,7 +18,7 @@ function filler(size) {
 }
 
 export default function Composer({
-  settings, setSettings, busy, onSend, onStop, onReset, canReset, turns, input, setInput, contextWarning,
+  settings, setSettings, workspaces, busy, onSend, onStop, onReset, canReset, turns, input, setInput, contextWarning,
 }) {
   const [open, setOpen] = useState(loadSettingsOpen)
 
@@ -51,6 +51,7 @@ export default function Composer({
           <SettingsPanel
             settings={settings}
             setSettings={setSettings}
+            workspaces={workspaces}
             onReset={onReset}
             canReset={canReset}
             busy={busy}
@@ -66,8 +67,8 @@ export default function Composer({
             title={open ? 'Скрыть настройки агента' : 'Показать настройки агента'}
           >
             агент: {settings.name.trim() || 'Ассистент'} · {settings.model} ·{' '}
-            {STRATEGY_MODES[settings.strategy] || 'окно'}
-            {settings.strategy !== 'branches' && ` ${settings.windowSize}`}
+            {settings.workspace?.trim() ? `«${settings.workspace.trim()}»` : 'личная'} ·{' '}
+            {LAYER_ORDER.filter(k => settings.layers?.[k] !== false).map(k => LAYER_SHORT[k]).join('+') || 'слои выкл'}
             {' '}{open ? '▴' : '▾'}
           </button>
           <span className="composer-hint">

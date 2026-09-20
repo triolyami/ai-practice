@@ -8,34 +8,60 @@ import Chat from './components/Chat.jsx'
 import TokenPanel from './components/TokenPanel.jsx'
 import Composer from './components/Composer.jsx'
 import ContextDiagram from './components/ContextDiagram.jsx'
-import FactsPanel from './components/FactsPanel.jsx'
+import MemoryPanel from './components/MemoryPanel.jsx'
 
 let nextId = 1
 
 export default function App() {
   const [settings, setSettings] = useState(loadAgent)
   const [chats, setChats] = useState(loadChats)
+  const [workspaces, setWorkspaces] = useState([])
   const [currentId, setCurrentId] = useState(null)
   const [messages, setMessages] = useState([])
   const [input, setInput] = useState('')
   const [notice, setNotice] = useState(null)
   const [agentInfo, setAgentInfo] = useState(null)
+  const [loadingChat, setLoadingChat] = useState(false)
+  const [memPending, setMemPending] = useState(false)
   const { chat, send, abort, reset } = useChat()
   const genRef = useRef(0)
   const loadRef = useRef(0)
+  const transcriptCache = useRef(new Map())
 
   useEffect(() => { saveChats(chats) }, [chats])
   useEffect(() => { saveAgent(settings) }, [settings])
+
+  useEffect(() => {
+    if (!currentId || loadingChat) return
+    transcriptCache.current.set(currentId, { messages, info: agentInfo })
+  }, [messages, agentInfo, currentId, loadingChat])
 
   const patchChat = useCallback((id, patch) => {
     setChats(prev => prev.map(c => (c.id === id ? { ...c, ...patch } : c)))
   }, [])
 
+  const patchInfo = useCallback((patch) => {
+    setAgentInfo(prev => (prev ? { ...prev, ...patch } : patch))
+  }, [])
+
+  const loadWorkspaces = useCallback(async () => {
+    try {
+      const res = await fetch('/api/workspaces')
+      if (res.ok) {
+        const data = await res.json()
+        setWorkspaces(data.workspaces || [])
+      }
+    } catch {}
+  }, [])
+
+  useEffect(() => { loadWorkspaces() }, [loadWorkspaces])
+
   const newSessionId = () =>
     `s-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`
 
-  const loadTranscript = useCallback(async (id) => {
+  const loadTranscript = useCallback(async (id, { background = false } = {}) => {
     const gen = ++loadRef.current
+    if (!background) setLoadingChat(true)
     try {
       const res = await fetch(`/api/agent?session_id=${encodeURIComponent(id)}`)
       const data = await res.json()
@@ -48,36 +74,42 @@ export default function App() {
       }
       setMessages(data.messages.map((m, i) => ({ id: `${id}-${i}`, role: m.role, content: m.content, meta: m.meta })))
       setAgentInfo(data)
-      if (data.parent_id) {
-        setChats(prev => prev.map(c => (
-          c.id === id && c.branch?.parent !== data.parent_id
-            ? { ...c, branch: { at: c.branch?.at ?? data.fork_len ?? 0, parent: data.parent_id } }
-            : c
-        )))
-      }
+      const ws = data.workspace || ''
+      patchChat(id, { workspace: ws })
+      setSettings(prev => (prev.workspace === ws ? prev : { ...prev, workspace: ws }))
     } catch {
       if (gen === loadRef.current) setNotice('Не удалось загрузить память агента.')
+    } finally {
+      if (gen === loadRef.current) setLoadingChat(false)
     }
-  }, [])
+  }, [patchChat])
 
   const handleEvent = useCallback((ev) => {
     if (ev.event === 'done' && ev.meta) {
+      setMemPending(true)
       setAgentInfo(prev => ({
         ...(prev || {}),
+        workspace: ev.meta.workspace,
+        layers: ev.meta.layers,
         totals: ev.meta.totals,
         context_preview: ev.meta.context_preview,
       }))
-    } else if (ev.event === 'facts') {
+    } else if (ev.event === 'memory') {
+      setMemPending(false)
       setAgentInfo(prev => ({
         ...(prev || {}),
-        facts: ev.facts,
+        workspace: ev.workspace,
+        workspace_id: ev.workspace_id,
+        working: ev.working,
         context_preview: ev.context_preview,
         totals: ev.totals,
       }))
+      loadWorkspaces()
     } else if (ev.event === 'notice') {
+      setMemPending(false)
       setNotice(ev.message)
     }
-  }, [])
+  }, [patchChat, loadWorkspaces])
 
   const handleSend = useCallback((text) => {
     const gen = ++genRef.current
@@ -86,7 +118,7 @@ export default function App() {
       sid = newSessionId()
       setCurrentId(sid)
       setChats(prev => [
-        { id: sid, title: text.slice(0, 80), updatedAt: Date.now() },
+        { id: sid, title: text.slice(0, 80), updatedAt: Date.now(), workspace: settings.workspace || '' },
         ...prev,
       ].slice(0, MAX_CHATS))
     }
@@ -95,6 +127,7 @@ export default function App() {
 
     send({ session_id: sid, message: text, config: snapshot(settings) }, (final) => {
       if (gen !== genRef.current) return
+      setMemPending(false)
       const assistant = {
         id: nextId++,
         role: 'assistant',
@@ -104,71 +137,56 @@ export default function App() {
         stopped: final.phase === 'stopped',
       }
       setMessages(prev => [...prev, assistant])
-      patchChat(sid, { updatedAt: Date.now() })
+      const ws = final.meta?.workspace
+      patchChat(sid, { updatedAt: Date.now(), ...(ws !== undefined ? { workspace: ws || '' } : {}) })
+      loadWorkspaces()
       reset()
     }, handleEvent)
-  }, [settings, currentId, send, reset, patchChat, handleEvent])
+  }, [settings, currentId, send, reset, patchChat, handleEvent, loadWorkspaces])
 
   const selectChat = useCallback((id) => {
     if (id === currentId) return
     genRef.current++
     abort()
     setCurrentId(id)
-    setMessages([])
-    setAgentInfo(null)
+    const cached = transcriptCache.current.get(id)
+    setMessages(cached?.messages || [])
+    setAgentInfo(cached?.info || null)
     setNotice(null)
+    setMemPending(false)
     reset()
-    loadTranscript(id)
-  }, [currentId, abort, reset, loadTranscript])
+    const ws = chats.find(c => c.id === id)?.workspace || ''
+    setSettings(prev => (prev.workspace === ws ? prev : { ...prev, workspace: ws }))
+    loadTranscript(id, { background: !!cached })
+  }, [currentId, chats, abort, reset, loadTranscript])
 
-  const forkChat = useCallback(async (count) => {
-    if (!currentId) return
-    try {
-      const res = await fetch('/api/fork', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: currentId, count }),
-      })
-      const data = await res.json()
-      if (!res.ok) {
-        setNotice(data.error || 'Не удалось создать ветку.')
-        return
-      }
-      genRef.current++
-      abort()
-      reset()
-      const parentTitle = chats.find(c => c.id === currentId)?.title || 'чат'
-      setChats(prev => [
-        { id: data.session_id, title: `${parentTitle} · ветка`, branch: { at: count, parent: data.parent_id || currentId }, updatedAt: Date.now() },
-        ...prev,
-      ].slice(0, MAX_CHATS))
-      setCurrentId(data.session_id)
-      setMessages((data.messages || []).map((m, i) => ({ id: `${data.session_id}-${i}`, role: m.role, content: m.content, meta: m.meta })))
-      setAgentInfo(data)
-    } catch {
-      setNotice('Не удалось связаться с сервером.')
-    }
-  }, [currentId, chats, abort, reset])
-
-  const newChat = useCallback(() => {
+  const newChat = useCallback((workspace = '') => {
     genRef.current++
+    loadRef.current++
     abort()
+    setLoadingChat(false)
     setCurrentId(null)
     setMessages([])
     setAgentInfo(null)
     setNotice(null)
+    setMemPending(false)
     reset()
+    setSettings(prev => (prev.workspace === workspace ? prev : { ...prev, workspace }))
   }, [abort, reset])
 
   const deleteChat = useCallback((id) => {
+    transcriptCache.current.delete(id)
     setChats(prev => prev.filter(c => c.id !== id))
     if (id === currentId) {
       genRef.current++
+      loadRef.current++
       abort()
+      setLoadingChat(false)
       setCurrentId(null)
       setMessages([])
       setAgentInfo(null)
       setNotice(null)
+      setMemPending(false)
     }
     fetch('/api/forget', {
       method: 'POST',
@@ -176,6 +194,31 @@ export default function App() {
       body: JSON.stringify({ session_id: id }),
     }).catch(() => {})
   }, [currentId, abort])
+
+  const deleteWorkspace = useCallback(async (wsid, name) => {
+    if (!window.confirm(`Удалить область «${name}»? Рабочая память сотрётся, чаты вернутся к личной.`)) return
+    try {
+      const res = await fetch('/api/workspace/delete', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ workspace_id: wsid }),
+      })
+      const data = await res.json()
+      if (!res.ok) {
+        setNotice(data.error || 'Не удалось удалить область.')
+        return
+      }
+      setChats(prev => prev.map(c => (c.workspace === name ? { ...c, workspace: '' } : c)))
+      if (currentId && (data.reverted || []).includes(currentId)) {
+        setSettings(prev => ({ ...prev, workspace: '' }))
+        setAgentInfo(prev => (prev ? { ...prev, workspace: '', workspace_id: currentId } : prev))
+      }
+      loadWorkspaces()
+      setNotice(`Область «${name}» удалена — её рабочая память очищена.`)
+    } catch {
+      setNotice('Не удалось связаться с сервером.')
+    }
+  }, [currentId, loadWorkspaces])
 
   const resetMemory = useCallback(async () => {
     if (!currentId) return
@@ -189,7 +232,7 @@ export default function App() {
         const data = await res.json()
         setMessages([])
         setAgentInfo(prev => prev ? { ...prev, ...data } : data)
-        setNotice('Память агента очищена: личность и настройки сохранены, диалог, факты и счётчики обнулены.')
+        setNotice('Краткосрочная память очищена: диалог и счётчики обнулены. Рабочая область и долговременная память не затронуты.')
       } else {
         setNotice('Не удалось сбросить память агента.')
       }
@@ -202,17 +245,9 @@ export default function App() {
     .filter(m => m.role === 'assistant' && m.meta?.tokens)
     .map(m => m.meta)
   const lastPct = tokenMetas.length ? tokenMetas[tokenMetas.length - 1].tokens.context_used_pct : 0
-  const forkable = (agentInfo?.strategy ?? settings.strategy) === 'branches'
-  const chatMeta = chats.find(c => c.id === currentId)
-  let parentChat = null
-  if (chatMeta?.branch?.parent) parentChat = chats.find(c => c.id === chatMeta.branch.parent) || null
-  if (!parentChat && chatMeta?.title?.endsWith(' · ветка')) {
-    const base = chatMeta.title.slice(0, -' · ветка'.length)
-    parentChat = chats.find(c => c.title === base) || null
-  }
   const contextWarning =
     lastPct >= 80
-      ? `Контекст заполнен на ${lastPct}% — следующий запрос может не влезть. Уменьшите окно или смените стратегию в настройках.`
+      ? `Контекст заполнен на ${lastPct}% — следующий запрос может не влезть. Выключите часть слоёв в настройках или начните новый чат.`
       : null
 
   return (
@@ -222,10 +257,12 @@ export default function App() {
         <aside className="sidebar">
           <ChatList
             chats={chats}
+            workspaces={workspaces}
             currentId={currentId}
             onSelect={selectChat}
             onNew={newChat}
             onDelete={deleteChat}
+            onDeleteWorkspace={deleteWorkspace}
           />
         </aside>
         <div className="main">
@@ -241,15 +278,12 @@ export default function App() {
             input={input}
             setInput={setInput}
             notice={notice}
-            forkable={forkable}
-            onFork={forkChat}
-            branch={chatMeta?.branch}
-            parentTitle={parentChat?.title}
-            onOpenParent={parentChat ? () => selectChat(parentChat.id) : null}
+            loading={loadingChat}
           />
           <Composer
             settings={settings}
             setSettings={setSettings}
+            workspaces={workspaces}
             busy={chat.phase === 'running'}
             onSend={handleSend}
             onStop={abort}
@@ -266,9 +300,14 @@ export default function App() {
             preview={agentInfo?.context_preview}
             metas={tokenMetas}
           />
-          <FactsPanel
-            facts={agentInfo?.facts}
-            strategy={settings.strategy}
+          <MemoryPanel
+            info={agentInfo}
+            sessionId={currentId}
+            messageCount={messages.length}
+            onPatch={patchInfo}
+            onNotice={setNotice}
+            pending={memPending}
+            loading={loadingChat}
           />
         </aside>
       </div>

@@ -149,6 +149,32 @@ def test_extraction_lands():
     td.cleanup()
 
 
+def test_longterm_task_leak_filtered():
+    td, store, lt = make_world()
+    leaky = (
+        "ЦЕЛЬ: запустить сайт кофейни\n"
+        "ФАКТЫ:\n"
+        "дедлайн: 15 октября\n"
+        "ДОЛГОСРОЧНОЕ:\n"
+        "Знания | дедлайн: 15 октября\n"  # утечка: ключ уже в рабочих фактах
+        "Профиль | стек: Python\n"
+    )
+    agent, _fc = make_agent(store, lt, "a1", extractor_reply=leaky)
+    events = run_turn(agent, "сайт кофейни к 15 октября, пишу на Python")
+    mem = memories(events)[0]
+    state, _covered = ws_state(store, "a1")
+    assert ["дедлайн", "15 октября"] in state["facts"]  # факт остался в рабочей
+    data = read_longterm(lt)
+    assert data["sections"]["Профиль"] == [["стек", "Python"]]
+    assert all(p[0] != "дедлайн" for p in data["sections"]["Знания"])
+    assert [a[1] for a in mem["longterm_added"]] == ["стек"]
+
+    events = run_turn(agent, "ещё одно сообщение")
+    mem = memories(events)[0]
+    assert mem["longterm_added"] == []  # повтор «стек: Python» — не новая запись
+    td.cleanup()
+
+
 def test_layers_toggle():
     td, store, lt = make_world()
     write_longterm(lt, {"Профиль": [["имя", "Толя"]]})
@@ -354,6 +380,7 @@ def test_longterm_file_tolerance():
 
 def main():
     test_extraction_lands()
+    test_longterm_task_leak_filtered()
     test_layers_toggle()
     test_shared_workspace()
     test_extractor_failure_and_retry()

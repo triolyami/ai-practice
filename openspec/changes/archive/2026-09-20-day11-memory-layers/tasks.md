@@ -14,7 +14,7 @@ can run in separate sessions/subagents against the API contract fixed in
   `day11/data/chat_history.db`; TopBar label «день 11 · память агента»; add
   `day11/data/` to `.gitignore`. Verify: `.venv/bin/python day11/server.py`
   boots on 7870 and serves the (stale, day10-branded) dist.
-- [ ] 1.2 Strip inherited machinery: delete `day10`-era `facts.py`, the
+- [x] 1.2 Strip inherited machinery: delete `day10`-era `facts.py`, the
   strategy switcher (`strategy`, `window_size`, `STRATEGY_MODES`,
   `facts_state`), `fork()`/`POST /api/fork`/`parent_id`/`fork_len`, and their
   UI twins (strategy seg, window input, fork button, BranchBanner,
@@ -61,31 +61,31 @@ can run in separate sessions/subagents against the API contract fixed in
 
 ## 3. Stream B — frontend (parallel with A; contract = design D6)
 
-- [ ] 3.1 `lib/constants.js` + `lib/storage.js`: `LAYERS` labels
+- [x] 3.1 `lib/constants.js` + `lib/storage.js`: `LAYERS` labels
   (краткосрочная/рабочая/долговременная), `DEFAULT_AGENT {workspace:"",
   layers:{short:true,working:true,longterm:true}}`, `snapshot()` wire format
   `{name,system_prompt,model,workspace,layers}`; keys renamed `day11-*-v1`.
   Verify: `npm run build` compiles.
-- [ ] 3.2 `MemoryPanel.jsx` (replaces FactsPanel): three sections —
+- [x] 3.2 `MemoryPanel.jsx` (replaces FactsPanel): three sections —
   долговременная (rendered file + edit textarea → `PUT /api/longterm`),
   рабочая (workspace name, goal/plan/facts editable → `PUT /api/working`,
   per-fact «→ в долговременную» → `POST /api/promote`), краткосрочная
   (message count + «живёт только в этом чате»). Verify: edits persist and
   survive reload (visible in `/api/agent` + `/api/longterm`).
-- [ ] 3.3 `ChatList.jsx`: group chats under workspace headers; «+» on a
+- [x] 3.3 `ChatList.jsx`: group chats under workspace headers; «+» on a
   workspace header creates a chat already assigned to it. Verify: two chats
   in one workspace render grouped.
-- [ ] 3.4 `SettingsPanel.jsx`: workspace name input with datalist of
+- [x] 3.4 `SettingsPanel.jsx`: workspace name input with datalist of
   `GET /api/workspaces` names; three layer checkboxes; strategy/window
   controls removed. Verify: toggles reach the request (`meta.layers`).
-- [ ] 3.5 `ContextDiagram.jsx` 5 segments (system/longterm/working/history/
+- [x] 3.5 `ContextDiagram.jsx` 5 segments (system/longterm/working/history/
   request) + `TokenPanel` rows (чат / обновление памяти) + `MetaLine`
   (layers · workspace · контекст% · $). Verify: diagram shows longterm +
   working segments after extraction.
-- [ ] 3.6 `App.jsx`/`useChat.js`: handle `memory` event (patch agentInfo
+- [x] 3.6 `App.jsx`/`useChat.js`: handle `memory` event (patch agentInfo
   silently), workspace assign via config, welcome examples re-themed to
   memory. Verify: full send→extract→panel-update flow in dev server.
-- [ ] 3.7 `npm run build` → commit `dist/`. Verify: server on 7870 serves the
+- [x] 3.7 `npm run build` → commit `dist/`. Verify: server on 7870 serves the
   new UI with no Node running.
 
 ## 4. Verification & docs — last
@@ -96,12 +96,12 @@ can run in separate sessions/subagents against the API contract fixed in
   chat-only state; two agents share workspace memory; restart roundtrip;
   corrupt snapshot/file tolerance. Verify: `.venv/bin/python
   day11/offline_check.py` → all pass.
-- [ ] 4.2 Live smoke (minimal real calls, user balance-sensitive): 2 chats →
+- [x] 4.2 Live smoke (minimal real calls, user balance-sensitive): 2 chats →
   same workspace → fact from chat A appears in chat B's request; long-term
   toggle on/off changes the answer; `longterm.md` gains a bullet; restart
   server → state intact. Verify: manual/curl, recorded in README.
-- [ ] 4.3 `day11/README.md` (Russian): task text, layer model diagram, demo
+- [x] 4.3 `day11/README.md` (Russian): task text, layer model diagram, demo
   scenario for «как влияет на ответы» (profile→«напиши сервис авторизации»
   with/without long-term), run instructions.
-- [ ] 4.4 Append `### Day 11` section to `AGENTS.md` (local file): ports,
+- [x] 4.4 Append `### Day 11` section to `AGENTS.md` (local file): ports,
   storage layout, extractor design, gotchas discovered.

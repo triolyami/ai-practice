@@ -1,0 +1,35 @@
+schema: spec-driven
+
+# Project context — injected into all artifact instructions.
+context: |
+  AI-engineering course homework repo. One folder per task (dayN/), plus
+  lab/. Weeks 1-2 done; new work happens via OpenSpec changes.
+  Stack: Python 3 stdlib-first (hand-rolled HTTP servers, NDJSON streaming),
+  Vite + React 19 frontends with committed dist/. LLMs via OpenAI-compatible
+  APIs (Z.ai glm-*, DeepSeek); keys in root .env - never commit or print.
+  Every task is a comparison experiment: weigh approaches, recommend one,
+  but the task text is authoritative - never drift beyond it.
+  Task texts and user-facing docs are in Russian; code/artifacts in English
+  unless the task says otherwise.
+
+# Per-artifact rules (optional)
+# Add custom rules for specific artifacts.
+# Example:
+#   rules:
+#     proposal:
+#       - Keep proposals under 500 words
+#       - Always include a "Non-goals" section
+#     tasks:
+#       - Break tasks into chunks of max 2 hours
+
+# Per-operation guidance (optional)
+# Add advisory guidance for how apply and archive work should be conducted.
+# This is separate from artifact rules above.
+# Example:
+#   operations:
+#     apply:
+#       guidance:
+#         - Keep test summaries concise
+#     archive:
+#       guidance:
+#         - Summarize the archive outcome before finishing

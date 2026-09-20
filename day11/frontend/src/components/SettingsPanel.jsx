@@ -1,14 +1,11 @@
-import { MODELS, MODEL_NOTES, STRATEGY_MODES } from '../lib/constants.js'
+import { MODELS, MODEL_NOTES, LAYERS, LAYER_ORDER } from '../lib/constants.js'
 import { plural } from '../lib/format.js'
 
-export default function SettingsPanel({ settings, setSettings, onReset, canReset, busy, turns }) {
+export default function SettingsPanel({ settings, setSettings, onReset, canReset, busy, turns, workspaces }) {
   const set = (name, value) => setSettings(prev => ({ ...prev, [name]: value }))
+  const setLayer = (key, value) =>
+    setSettings(prev => ({ ...prev, layers: { ...prev.layers, [key]: value } }))
   const spec = MODELS[settings.model]
-  const strategyNote = {
-    window: '«окно» — в запрос уходят только последние N сообщений, всё старше модель не видит вообще; дёшево, но детали за окном теряются безвозвратно',
-    facts: '«факты» — после каждого ответа модель обновляет блок «ключ: значение» (цель, ограничения, предпочтения, решения, договорённости); в запрос уходят факты + последние N сообщений — детали держатся, пока модель считает их важными',
-    branches: '«ветки» — история не режется; чекпойнт ставится кнопкой «⤵ ветка отсюда» у сообщения, и от одного места можно развести независимые продолжения — ничего не теряется, но каждая ветка несёт свою историю целиком',
-  }[settings.strategy]
 
   return (
     <div className="settings">
@@ -73,37 +70,49 @@ export default function SettingsPanel({ settings, setSettings, onReset, canReset
 
       <div className="set-row">
         <div className="set-head">
-          <span className="set-name">Стратегия контекста</span>
-          <div className="seg seg--sm" role="group">
-            {Object.entries(STRATEGY_MODES).map(([mode, label]) => (
-              <button
-                key={mode}
-                type="button"
-                className={settings.strategy === mode ? 'active' : ''}
-                onClick={() => set('strategy', mode)}
-              >
-                {label}
-              </button>
-            ))}
-          </div>
+          <span className="set-name">Рабочая область</span>
         </div>
-        {settings.strategy !== 'branches' && (
-          <div className="set-fields set-fields--inline">
-            <label className="mini-label" htmlFor="window-size">размер окна N</label>
-            <input
-              id="window-size"
-              type="number"
-              className="input input--sm input--num"
-              min={2}
-              max={50}
-              value={settings.windowSize}
-              onChange={e => set('windowSize', Number(e.target.value))}
-            />
-          </div>
-        )}
+        <div className="set-fields">
+          <input
+            type="text"
+            className="input input--sm"
+            list="ws-names"
+            value={settings.workspace}
+            maxLength={120}
+            placeholder="пусто — личная область чата"
+            onChange={e => set('workspace', e.target.value)}
+          />
+          <datalist id="ws-names">
+            {(workspaces || []).map(w => (
+              <option key={w.id} value={w.name} />
+            ))}
+          </datalist>
+        </div>
         <p className="set-note">
-          {strategyNote} Стратегию можно переключать в любой момент; счётчики расхода
-          считаются отдельно по каждой стратегии{settings.strategy === 'facts' ? ', обновление фактов делает та же модель после каждого ответа' : ''}.
+          общая рабочая память (цель, план, факты задачи) для всех чатов области;
+          новое имя создаёт область, пустое поле возвращает чат к личной памяти
+        </p>
+      </div>
+
+      <div className="set-row">
+        <div className="set-head">
+          <span className="set-name">Слои в запросе</span>
+        </div>
+        <div className="set-fields set-fields--inline">
+          {LAYER_ORDER.map(key => (
+            <label key={key} className="layer-check">
+              <input
+                type="checkbox"
+                checked={settings.layers?.[key] !== false}
+                onChange={e => setLayer(key, e.target.checked)}
+              />
+              {LAYERS[key]}
+            </label>
+          ))}
+        </div>
+        <p className="set-note">
+          какие слои уходят в следующий запрос: выключите слой, чтобы увидеть,
+          как ответ меняется без него (краткосрочная off = агент без памяти диалога)
         </p>
       </div>
 
@@ -126,8 +135,8 @@ export default function SettingsPanel({ settings, setSettings, onReset, canReset
           </div>
         </div>
         <p className="set-note">
-          историю и факты хранит сам агент, а не браузер: кнопка вызывает agent.reset() на сервере,
-          вместе с ней обнуляются счётчики токенов и стоимости
+          историю хранит сам агент, а не браузер: кнопка вызывает agent.reset() на сервере —
+          чистятся краткосрочная память и счётчики; рабочая область и longterm.md не затрагиваются
         </p>
       </div>
     </div>

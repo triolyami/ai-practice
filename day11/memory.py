@@ -26,11 +26,19 @@ MEMORY_LOCK = threading.RLock()
 
 MEMORY_SYSTEM_PROMPT = (
     "Ты — редактор памяти агента. Память делится на два слоя: "
-    "РАБОЧАЯ — данные текущей задачи (цель, план, сроки, бюджет, ограничения, "
-    "принятые по задаче решения); ДОЛГОСРОЧНАЯ — данные о пользователе и общие "
-    "знания (профиль, стек, предпочтения, решения и факты, полезные в любой задаче). "
+    "РАБОЧАЯ — всё, что относится к текущей задаче (цель, план, сроки, бюджет, "
+    "ограничения, названия проектов, детали и выводы обсуждения, принятые по "
+    "задаче решения); ДОЛГОСРОЧНАЯ — только сведения о пользователе, которые "
+    "переживут эту задачу: Профиль — кто он (имя, роль, стек); Решения — его "
+    "устойчивые принципы и договорённости уровня «всегда/никогда»; Знания — "
+    "общие справочные факты, полезные в любой задаче. "
     "Тебе дают текущее состояние обоих слоёв и новые сообщения диалога. Обнови их: "
     "сохрани актуальное, дополни новым, устаревшее переформулируй или убери. "
+    "Проверка для ДОЛГОСРОЧНОЕ: строка обязана читаться самостоятельно, без "
+    "контекста переписки — «налоги: патент удобнее» плохо (удобнее для чего?), "
+    "«стек: Python» хорошо. Факты задачи не дублируй в долговременную — даже "
+    "если просили «запомнить»: слой выбирается по смыслу, а не по просьбе. "
+    "Сомневаешься — не пиши в ДОЛГОСРОЧНОЕ: лучше пропустить, чем засорять. "
     "То, что не относится ни к задаче, ни к пользователю, не сохраняй. "
     "Формат ответа строгий, без пояснений и markdown-разметки:\n"
     "ЦЕЛЬ: <одна строка — цель задачи>\n"
@@ -158,6 +166,31 @@ def parse_memory(text: str):
     return result
 
 
+def drop_task_leaks(longterm, *fact_lists) -> dict:
+    """Убирает долговременные строки, чей ключ уже лежит в рабочих фактах:
+    данные задачи не должны дублироваться в долговременный слой."""
+    if not longterm:
+        return {}
+    keys = {
+        str(p[0]).strip().lower()
+        for facts in fact_lists
+        for p in (facts or [])
+        if isinstance(p, (list, tuple)) and p and str(p[0]).strip()
+    }
+    out = {}
+    for sec, pairs in longterm.items():
+        kept = [
+            p
+            for p in pairs or []
+            if isinstance(p, (list, tuple))
+            and len(p) >= 2
+            and str(p[0]).strip().lower() not in keys
+        ]
+        if kept:
+            out[sec] = kept
+    return out
+
+
 def update_memory(working, longterm_sections, messages, model: str, client=None):
     blocks = []
     wt = working_text(working)
@@ -182,7 +215,13 @@ def update_memory(working, longterm_sections, messages, model: str, client=None)
         temperature=0,
     )
     text = (resp.choices[0].message.content or "").strip()
-    return parse_memory(text), getattr(resp, "usage", None), text
+    parsed = parse_memory(text)
+    if parsed is not None:
+        prior_facts = normalize_working(working)["facts"]
+        parsed["longterm"] = drop_task_leaks(
+            parsed["longterm"], parsed["facts"], prior_facts
+        )
+    return parsed, getattr(resp, "usage", None), text
 
 
 def normalize_working(state) -> dict:
@@ -300,10 +339,13 @@ def write_longterm(path, sections_update) -> list:
                     continue
                 landed = sec_name
                 found = False
+                changed = False
                 for name, plist in sections.items():
-                    for i, (ek, _ev) in enumerate(plist):
+                    for i, (ek, ev) in enumerate(plist):
                         if ek.lower() == key.lower():
-                            plist[i] = [ek, value]
+                            if ev != value:
+                                plist[i] = [ek, value]
+                                changed = True
                             landed = name
                             found = True
                             break
@@ -311,7 +353,9 @@ def write_longterm(path, sections_update) -> list:
                         break
                 if not found:
                     sections.setdefault(sec_name, []).append([key, value])
-                applied.append([landed, key, value])
+                    changed = True
+                if changed:
+                    applied.append([landed, key, value])
         ordered = [name for name in LONGTERM_SECTIONS if name in sections]
         ordered += [name for name in sections if name not in LONGTERM_SECTIONS]
         lines = []

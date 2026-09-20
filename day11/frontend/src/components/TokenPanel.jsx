@@ -1,4 +1,4 @@
-import { MODELS, STRATEGY_MODES, fmtMoney, fmtTokens } from '../lib/constants.js'
+import { MODELS, fmtMoney, fmtTokens } from '../lib/constants.js'
 
 function level(pct) {
   if (pct >= 85) return 'red'
@@ -7,6 +7,11 @@ function level(pct) {
 }
 
 const EMPTY_BUCKET = { requests: 0, prompt_tokens: 0, completion_tokens: 0, cost_usd: 0 }
+
+const ROWS = [
+  { key: 'chat', label: 'чат' },
+  { key: 'memory_calls', label: 'обновление памяти' },
+]
 
 export default function TokenPanel({ metas, model, totals, preview }) {
   const last = metas.length ? metas[metas.length - 1] : null
@@ -21,8 +26,7 @@ export default function TokenPanel({ metas, model, totals, preview }) {
         ? Math.min(100, Math.round(inherited / preview.context_limit * 1000) / 10)
         : 0)
   const limit = MODELS[model]?.context_limit ?? null
-  const byMode = totals ?? last?.totals ?? null
-  const factsCalls = byMode?.facts_calls
+  const sums = totals ?? last?.totals ?? null
 
   return (
     <section className="tokenpanel">
@@ -41,27 +45,20 @@ export default function TokenPanel({ metas, model, totals, preview }) {
           </span>
         </div>
         <div className="tp-block tp-compare">
-          <span className="mini-label">расход по стратегиям (промпт + ответ · стоимость)</span>
-          {byMode ? (
+          <span className="mini-label">расход (промпт + ответ · стоимость)</span>
+          {sums ? (
             <table className="tp-table">
               <tbody>
-                {Object.entries(STRATEGY_MODES).map(([mode, label]) => {
-                  const b = byMode[mode] ?? EMPTY_BUCKET
+                {ROWS.map(({ key, label }) => {
+                  const b = sums[key] ?? EMPTY_BUCKET
                   return (
-                    <tr key={mode} className={last?.strategy === mode ? 'tp-row--on' : ''}>
+                    <tr key={key} className={key === 'memory_calls' ? 'tp-row--summary' : ''}>
                       <td>{label}</td>
                       <td>{fmtTokens(b.prompt_tokens)} + {fmtTokens(b.completion_tokens)}</td>
                       <td>{fmtMoney(b.cost_usd)}</td>
                     </tr>
                   )
                 })}
-                {factsCalls && (
-                  <tr className="tp-row--summary" title="отдельные вызовы модели на обновление блока фактов">
-                    <td>обновление фактов</td>
-                    <td>{factsCalls.requests} · {fmtTokens(factsCalls.prompt_tokens)} + {fmtTokens(factsCalls.completion_tokens)}</td>
-                    <td>{fmtMoney(factsCalls.cost_usd)}</td>
-                  </tr>
-                )}
               </tbody>
             </table>
           ) : (
