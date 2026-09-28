@@ -1,2 +1,3 @@
 openai>=3.7
 gradio>=6.26
+mcp>=2.2,<3

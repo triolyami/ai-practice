@@ -1,0 +1,17 @@
+{
+  "name": "day16-ts-tools",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "TypeScript MCP-сервер для дня 16 — зеркало py-tools поверх @modelcontextprotocol/sdk",
+  "scripts": {
+    "start": "tsx server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.30.0"
+  },
+  "devDependencies": {
+    "tsx": "4.23.13",
+    "@types/node": "^24.0.0"
+  }
+}
