@@ -100,7 +100,9 @@ export default function App() {
   const laneNote =
     MODELS[model].thinking === 'effort'
       ? `${MODELS[model].label} · effort: ${effort}`
-      : `${MODELS[model].label} · рассуждения отключены`
+      : MODELS[model].thinking === 'native'
+        ? `${MODELS[model].label} · рассуждения включены`
+        : `${MODELS[model].label} · рассуждения отключены`
 
   const start = async () => {
     requestAnimationFrame(() =>

@@ -20,13 +20,16 @@
 
 ## Файлы
 
-- `config.py` — клиент Z.ai, `MODELS` (glm-4.6 → thinking disabled, glm-5.3 →
-  thinking effort), `EFFORTS`/`DEFAULT_EFFORT`, `thinking_config(model, effort)`.
+- `config.py` — клиенты провайдеров (Z.ai и DeepSeek, ленивая инициализация),
+  `MODELS` (glm-4.6 → thinking disabled, glm-5.3 → thinking effort,
+  deepseek-v4-flash / deepseek-v4-pro → нативное рассуждение), `EFFORTS`/
+  `DEFAULT_EFFORT`, `thinking_config(model, effort)`, `missing_key(model)`.
 - `defaults.py` — дефолтный промпт (нейминг кофейни + два проверяемых факта),
   ожидаемые факты, температуры по умолчанию.
 - `server.py` — stdlib-сервер :7863, `POST /api/run {prompt, model, temperature,
   effort}` (NDJSON `start`/`delta`/`done`), temperature 0–2 (не клампится —
-  ошибка API видна в карточке), effort только для glm-5.3 (иначе low), параллельные
+  ошибка API видна в карточке), effort только для glm-5.3 (иначе low), без
+  DEEPSEEK_API_KEY выбор deepseek-модели даёт 400 с подсказкой, параллельные
   генерации без блокировок, обрыв соединения прерывает свою генерацию.
 - `run_matrix.py` — замороженный прогон: обе модели × 3 температуры × 3 прогона
   → `results.json`. Перезапись безопасна: выводы живут в коде фронтенда, а не в json.

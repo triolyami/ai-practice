@@ -3,7 +3,15 @@ import time
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
-from config import DEFAULT_EFFORT, DEFAULT_MODEL, EFFORTS, MODELS, complete, thinking_label
+from config import (
+    DEFAULT_EFFORT,
+    DEFAULT_MODEL,
+    EFFORTS,
+    MODELS,
+    complete,
+    missing_key,
+    thinking_label,
+)
 from defaults import DEFAULT_PROMPT
 
 DAY4_DIR = Path(__file__).parent
@@ -42,6 +50,9 @@ def parse_run(body: dict) -> tuple:
     model = body.get("model")
     if model not in MODELS:
         model = DEFAULT_MODEL
+    key_err = missing_key(model)
+    if key_err:
+        return None, key_err
     temperature = body.get("temperature", 0)
     if isinstance(temperature, bool) or not isinstance(temperature, (int, float)):
         return None, "Поле temperature должно быть числом."

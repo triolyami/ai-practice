@@ -23,6 +23,20 @@ export const MODELS = {
     defaultTemperatures: [0, 0.7, 1.2],
     cap: 'glm-5.3 принимает значения выше 1 — задание с t=1.2 выполняется на нём буквально.',
   },
+  'deepseek-v4-flash': {
+    label: 'deepseek-v4-flash',
+    thinking: 'native',
+    note: 'быстрая, рассуждает сама — рассуждение приходит отдельным полем',
+    defaultTemperatures: [0, 0.7, 1.2],
+    cap: 'DeepSeek принимает всю шкалу 0–2 — задание с t=1.2 выполняется нативно.',
+  },
+  'deepseek-v4-pro': {
+    label: 'deepseek-v4-pro',
+    thinking: 'native',
+    note: 'старшая, рассуждает сама — рассуждение приходит отдельным полем',
+    defaultTemperatures: [0, 0.7, 1.2],
+    cap: 'DeepSeek принимает всю шкалу 0–2 — задание с t=1.2 выполняется нативно.',
+  },
 }
 
 export const EFFORTS = ['low', 'high', 'max']
