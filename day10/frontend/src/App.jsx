@@ -48,6 +48,13 @@ export default function App() {
       }
       setMessages(data.messages.map((m, i) => ({ id: `${id}-${i}`, role: m.role, content: m.content, meta: m.meta })))
       setAgentInfo(data)
+      if (data.parent_id) {
+        setChats(prev => prev.map(c => (
+          c.id === id && c.branch?.parent !== data.parent_id
+            ? { ...c, branch: { at: c.branch?.at ?? data.fork_len ?? 0, parent: data.parent_id } }
+            : c
+        )))
+      }
     } catch {
       if (gen === loadRef.current) setNotice('Не удалось загрузить память агента.')
     }
@@ -132,13 +139,12 @@ export default function App() {
       reset()
       const parentTitle = chats.find(c => c.id === currentId)?.title || 'чат'
       setChats(prev => [
-        { id: data.session_id, title: `${parentTitle} · ветка`, branch: { at: count }, updatedAt: Date.now() },
+        { id: data.session_id, title: `${parentTitle} · ветка`, branch: { at: count, parent: data.parent_id || currentId }, updatedAt: Date.now() },
         ...prev,
       ].slice(0, MAX_CHATS))
       setCurrentId(data.session_id)
       setMessages((data.messages || []).map((m, i) => ({ id: `${data.session_id}-${i}`, role: m.role, content: m.content, meta: m.meta })))
       setAgentInfo(data)
-      setNotice(`Ветка создана с сообщения ${count}: дальше она живёт независимо, переключение — в списке слева.`)
     } catch {
       setNotice('Не удалось связаться с сервером.')
     }
@@ -197,6 +203,13 @@ export default function App() {
     .map(m => m.meta)
   const lastPct = tokenMetas.length ? tokenMetas[tokenMetas.length - 1].tokens.context_used_pct : 0
   const forkable = (agentInfo?.strategy ?? settings.strategy) === 'branches'
+  const chatMeta = chats.find(c => c.id === currentId)
+  let parentChat = null
+  if (chatMeta?.branch?.parent) parentChat = chats.find(c => c.id === chatMeta.branch.parent) || null
+  if (!parentChat && chatMeta?.title?.endsWith(' · ветка')) {
+    const base = chatMeta.title.slice(0, -' · ветка'.length)
+    parentChat = chats.find(c => c.title === base) || null
+  }
   const contextWarning =
     lastPct >= 80
       ? `Контекст заполнен на ${lastPct}% — следующий запрос может не влезть. Уменьшите окно или смените стратегию в настройках.`
@@ -220,6 +233,7 @@ export default function App() {
             metas={tokenMetas}
             model={settings.model}
             totals={agentInfo?.totals}
+            preview={agentInfo?.context_preview}
           />
           <Chat
             messages={messages}
@@ -229,6 +243,9 @@ export default function App() {
             notice={notice}
             forkable={forkable}
             onFork={forkChat}
+            branch={chatMeta?.branch}
+            parentTitle={parentChat?.title}
+            onOpenParent={parentChat ? () => selectChat(parentChat.id) : null}
           />
           <Composer
             settings={settings}

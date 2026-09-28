@@ -70,7 +70,20 @@ function ForkButton({ count, onFork, running }) {
   )
 }
 
-export default function Chat({ messages, chat, input, setInput, notice, forkable, onFork }) {
+function BranchBanner({ branch, parentTitle, onOpenParent }) {
+  return (
+    <div className="branch-banner">
+      <span className="branch-banner-text">
+        ↳ ветка с сообщения {branch.at} от «{parentTitle || 'исходного чата'}» — дальше живёт независимо
+      </span>
+      {onOpenParent
+        ? <button type="button" className="branch-banner-link" onClick={onOpenParent}>открыть исходный чат →</button>
+        : <span className="branch-banner-gone">исходный чат не найден</span>}
+    </div>
+  )
+}
+
+export default function Chat({ messages, chat, input, setInput, notice, forkable, onFork, branch, parentTitle, onOpenParent }) {
   const scrollRef = useRef(null)
   const stickRef = useRef(true)
 
@@ -111,6 +124,8 @@ export default function Chat({ messages, chat, input, setInput, notice, forkable
             </div>
           </div>
         )}
+
+        {branch && <BranchBanner branch={branch} parentTitle={parentTitle} onOpenParent={onOpenParent} />}
 
         {notice && <div className="notice">{notice}</div>}
 

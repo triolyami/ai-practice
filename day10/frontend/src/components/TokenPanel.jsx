@@ -8,11 +8,18 @@ function level(pct) {
 
 const EMPTY_BUCKET = { requests: 0, prompt_tokens: 0, completion_tokens: 0, cost_usd: 0 }
 
-export default function TokenPanel({ metas, model, totals }) {
+export default function TokenPanel({ metas, model, totals, preview }) {
   const last = metas.length ? metas[metas.length - 1] : null
   const t = last?.tokens
-  const used = t ? (t.total_with_answer ?? t.total_actual ?? t.total_est) : 0
-  const pct = t ? t.context_used_pct : 0
+  const inherited = preview?.total ?? 0
+  const used = t
+    ? (t.total_with_answer ?? t.total_actual ?? t.total_est)
+    : inherited
+  const pct = t
+    ? t.context_used_pct
+    : (preview?.context_limit
+        ? Math.min(100, Math.round(inherited / preview.context_limit * 1000) / 10)
+        : 0)
   const limit = MODELS[model]?.context_limit ?? null
   const byMode = totals ?? last?.totals ?? null
   const factsCalls = byMode?.facts_calls
