@@ -1,0 +1,73 @@
+name: local-llm
+
+services:
+  ollama:
+    image: ollama/ollama:0.35.1
+    container_name: ollama
+    ports:
+      - "127.0.0.1:11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 15s
+    restart: unless-stopped
+
+  ollama-init:
+    image: ollama/ollama:0.35.1
+    entrypoint: ["/bin/sh", "/scripts/init-ollama.sh"]
+    environment:
+      OLLAMA_HOST: http://ollama:11434
+    volumes:
+      - ./models:/models:ro
+      - ./scripts/init-ollama.sh:/scripts/init-ollama.sh:ro
+    depends_on:
+      ollama:
+        condition: service_healthy
+    restart: "no"
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: sqlite:////app/data/chats.db
+      OLLAMA_URL: http://ollama:11434
+      OLLAMA_TIMEOUT_SECONDS: "600"
+      CORS_ORIGINS: http://localhost:3000
+    ports:
+      - "127.0.0.1:8080:8000"
+    volumes:
+      - chat_data:/app/data
+    depends_on:
+      ollama-init:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/api/health')",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "127.0.0.1:3000:80"
+    depends_on:
+      backend:
+        condition: service_healthy
+    restart: unless-stopped
+
+volumes:
+  chat_data:
+  ollama_data:
